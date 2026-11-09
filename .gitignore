@@ -1,0 +1,46 @@
+# Assistant and editor config
+.kiro/
+.claude/
+CLAUDE.local.md
+.codex/
+.cursor/
+.vscode/
+.idea/
+.threatmodel/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage/
+
+# Build and test output
+node_modules/
+dist/
+*.tsbuildinfo
+test-results/
+playwright-report/
+blob-report/
+.ash/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS and logs
+.DS_Store
+*.log
+
+# Raw media (host demo videos outside the repo)
+*.mov
+*.MOV
+*.mp4
+*.MP4
+*.heic
+*.HEIC

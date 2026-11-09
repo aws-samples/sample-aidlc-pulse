@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-DLC Commands Cheatsheet · AI-DLC Pulse</title>
+<style>
+:root[data-theme="light"]{--bg:#f4f5f7;--surface:#fff;--border:#dfe3e8;--text:#16191f;--muted:#5f6b7a;--heading:#232f3e;--accent:#ff9900;--accent-2:#0972d3;--code-bg:#f2f3f5;--code-text:#16191f;--chip:#eef4fc;--hl:#fff3d6}
+:root[data-theme="dark"]{--bg:#0f141a;--surface:#161d26;--border:#2a3441;--text:#e6e9ee;--muted:#9aa5b4;--heading:#fff;--accent:#ff9900;--accent-2:#539fe5;--code-bg:#0b1016;--code-text:#e6e9ee;--chip:#1c2a3a;--hl:#3a2e10}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Amazon Ember",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+header{position:sticky;top:0;z-index:10;background:#232f3e;color:#fff;border-bottom:3px solid var(--accent)}
+.bar{max-width:1680px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 24px;flex-wrap:wrap}
+.bar h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.2px}
+.bar h1 span{color:var(--accent)}
+.bar .meta{font-size:12px;color:#c6ccd5}
+.bar .spacer{flex:1}
+#q{width:min(340px,70vw);padding:8px 12px;border-radius:6px;border:1px solid #4a5869;background:#18212c;color:#fff;font:inherit}
+#q::placeholder{color:#93a0b0}
+.btn{background:transparent;border:1px solid #4a5869;color:#fff;border-radius:6px;padding:7px 12px;font:inherit;cursor:pointer}
+a.btn{text-decoration:none;display:inline-block}
+.btn:hover{border-color:var(--accent)}
+main{max-width:1680px;margin:0 auto;padding:20px 24px 48px}
+.intro{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:18px}
+.tip{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent-2);border-radius:8px;padding:10px 14px;font-size:13px}
+.tip b{color:var(--heading)}
+.grid{columns:3 460px;column-gap:16px}
+.card{break-inside:avoid;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin:0 0 16px;overflow:hidden}
+.card h2{margin:0;padding:10px 14px;font-size:15px;color:var(--heading);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.card h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#232f3e;font-size:12px;font-weight:700}
+.card h2 .where{margin-left:auto;font-size:11px;font-weight:400;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:1px 8px}
+.card p.note{margin:8px 14px;color:var(--muted);font-size:12.5px}
+table{width:100%;border-collapse:collapse}
+td{padding:6px 14px;border-top:1px solid var(--border);vertical-align:top}
+tr:first-child td{border-top:0}
+td:first-child{width:48%}
+td.desc{color:var(--text);font-size:13px}
+code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:var(--code-bg);color:var(--code-text);padding:2px 6px;border-radius:4px;word-break:break-word;cursor:copy;display:inline-block;line-height:1.5}
+code:hover{outline:1px solid var(--accent)}
+code.copied{outline:2px solid #1d8102}
+.inline code{cursor:default;display:inline;padding:1px 4px}
+.inline code:hover{outline:0}
+tr.hide{display:none}
+.card.hide{display:none}
+mark{background:var(--hl);color:inherit;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
+.chips code{background:var(--chip)}
+.ref td:first-child{width:auto;white-space:nowrap}
+.ref th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:6px 14px;border-bottom:1px solid var(--border)}
+.ph{font-weight:700;font-size:12px;padding:6px 14px 2px;color:var(--accent-2)}
+footer{max-width:1680px;margin:0 auto;padding:0 24px 30px;color:var(--muted);font-size:12px}
+footer a{color:var(--accent-2)}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#232f3e;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;border:1px solid var(--accent)}
+#toast.on{opacity:1}
+@media print{header{position:static}#q,.btn{display:none}.grid{columns:2}body{font-size:11px}code{font-size:10.5px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>AI-DLC <span>Commands Cheatsheet</span></h1>
+    <span class="meta">awslabs/aidlc-workflows · v2.11.3 (4 Nov 2026)</span>
+    <span class="spacer"></span>
+    <input id="q" type="search" placeholder="Filter commands, e.g. unit, scope, doctor" aria-label="Filter commands">
+    <a class="btn" href="/">← Dashboard</a>
+    <button class="btn" id="theme" type="button">Dark / Light</button>
+  </div>
+</header>
+
+<main>
+  <div class="intro">
+    <div class="tip"><b>Two command planes.</b> <span class="inline"><code>/aidlc ...</code></span> runs in the agent chat and drives the workflow. <span class="inline"><code>aidlc ...</code></span> runs in your terminal for install, project setup, diagnostics and updates.</div>
+    <div class="tip"><b>Prefix by harness.</b> Type <span class="inline"><code>/aidlc</code></span> on Kiro CLI, Kiro IDE, Claude Code, Cursor, opencode and Copilot. On Codex CLI type <span class="inline"><code>$aidlc</code></span>. Flags are identical.</div>
+    <div class="tip"><b>Plain words work.</b> At any gate or question you can answer in your own words ("approve", "skip market research", "redo this stage"). Flags are the exact form of the same requests.</div>
+    <div class="tip"><b>Click any command</b> to copy it. Use the filter box to narrow the sheet. <span class="inline"><code>&lt;x&gt;</code></span> = required, <span class="inline"><code>[x]</code></span> = optional.</div>
+  </div>
+
+  <div class="grid" id="grid">
+
+    <section class="card">
+      <h2><span class="n">1</span>Install &amp; set up<span class="where">terminal</span></h2>
+      <table>
+        <tr><td><code>curl -fsSL https://github.com/awslabs/aidlc-workflows/releases/latest/download/install.sh | sh</code></td><td class="desc">Install the native <span class="inline"><code>aidlc</code></span> command (macOS / Linux). Adds <span class="inline"><code>~/.local/bin/aidlc</code></span>.</td></tr>
+        <tr><td><code>irm https://github.com/awslabs/aidlc-workflows/releases/latest/download/install.ps1 | iex</code></td><td class="desc">Install on Windows PowerShell (normal, non-admin window).</td></tr>
+        <tr><td><code>export PATH="$HOME/.local/bin:$PATH"</code></td><td class="desc">Put <span class="inline"><code>aidlc</code></span> on PATH for this shell.</td></tr>
+        <tr><td><code>aidlc config</code></td><td class="desc">Set up or refresh the current project (interactive: picks or asks for the harness).</td></tr>
+        <tr><td><code>aidlc config --harness kiro-ide</code></td><td class="desc">Set up for a named harness: <span class="inline"><code>kiro-ide</code></span> (Kiro IDE ≥1.1.70, Kiro CLI ≥2.24.1), <span class="inline"><code>kiro</code></span>, <span class="inline"><code>claude</code></span>, <span class="inline"><code>codex</code></span>, <span class="inline"><code>cursor</code></span>, <span class="inline"><code>opencode</code></span>, <span class="inline"><code>copilot</code></span>.</td></tr>
+        <tr><td><code>aidlc config --harness claude --dry-run</code></td><td class="desc">Preview the full plan without changing any files.</td></tr>
+        <tr><td><code>aidlc config --yes</code></td><td class="desc">Non-interactive refresh / confirm.</td></tr>
+        <tr><td><code>aidlc doctor</code></td><td class="desc">Health check of machine, project and framework integrity.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">2</span>Native <code style="cursor:default">aidlc</code> commands<span class="where">terminal</span></h2>
+      <table>
+        <tr><td><code>aidlc --help</code></td><td class="desc">The six public commands: config, doctor, version, update, use, uninstall.</td></tr>
+        <tr><td><code>aidlc &lt;command&gt; --help</code></td><td class="desc">Every option for one command.</td></tr>
+        <tr><td><code>aidlc help --all</code></td><td class="desc">Also reveals the hidden <span class="inline"><code>engine</code></span> and <span class="inline"><code>system</code></span> namespaces.</td></tr>
+        <tr><td><code>aidlc version</code></td><td class="desc">Print the active version.</td></tr>
+        <tr><td><code>aidlc update</code></td><td class="desc">Install the newest release on your channel.</td></tr>
+        <tr><td><code>aidlc update --check</code></td><td class="desc">Check only. Exit code 5 = update available.</td></tr>
+        <tr><td><code>aidlc update --channel stable</code></td><td class="desc">Switch channel and update now.</td></tr>
+        <tr><td><code>aidlc config --channel preview</code></td><td class="desc">Follow the preview stream (<span class="inline"><code>stable</code></span> to go back).</td></tr>
+        <tr><td><code>aidlc use &lt;version&gt;</code></td><td class="desc">Activate an installed version on this machine.</td></tr>
+        <tr><td><code>aidlc rollback</code></td><td class="desc">Go back to the previously active version.</td></tr>
+        <tr><td><code>aidlc config --pin 2.10.0 --yes</code></td><td class="desc">Pin the project to a release (CI / team consistency).</td></tr>
+        <tr><td><code>aidlc config --unpin</code></td><td class="desc">Remove the project pin.</td></tr>
+        <tr><td><code>aidlc doctor --verbose</code></td><td class="desc">Expand every check, healthy rows too.</td></tr>
+        <tr><td><code>aidlc doctor --check-updates</code></td><td class="desc">Health check plus refreshed update metadata.</td></tr>
+        <tr><td><code>aidlc doctor --export [--output &lt;dir&gt;]</code></td><td class="desc">Write a redacted diagnostic bundle to share.</td></tr>
+        <tr><td><code>aidlc uninstall</code></td><td class="desc">Remove the machine install (keeps config). <span class="inline"><code>--purge --yes</code></span> also removes machine records.</td></tr>
+      </table>
+      <p class="note">Shared options: <span class="inline"><code>--project-dir &lt;path&gt;</code> <code>--json</code> <code>--quiet</code> <code>--no-color</code> <code>--yes</code> <code>--offline</code> <code>--verbose</code></span></p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">3</span>Project config sections<span class="where">terminal</span></h2>
+      <table>
+        <tr><td><code>aidlc config --show</code></td><td class="desc">Show every section's settings without changing anything.</td></tr>
+        <tr><td><code>aidlc config flags --default-scope feature --project --yes</code></td><td class="desc">Shared default scope for the project (<span class="inline"><code>--local</code></span> for this checkout only).</td></tr>
+        <tr><td><code>aidlc config flags --show | --check | --reset --project --yes</code></td><td class="desc">Inspect, check or reset project flags.</td></tr>
+        <tr><td><code>aidlc config flags --bypass AIDLC_SKIP_ARTIFACT_GUARD --local --yes</code></td><td class="desc">Record a guard bypass (<span class="inline"><code>--clear-bypass</code></span> to undo).</td></tr>
+        <tr><td><code>aidlc config project --plugins aidlc,test-pro --mcp none</code></td><td class="desc">Plugin selection and MCP consent.</td></tr>
+        <tr><td><code>aidlc config providers [--check | --reset --yes]</code></td><td class="desc">Model provider (e.g. Bedrock) for non-Kiro harnesses.</td></tr>
+        <tr><td><code>aidlc config models [--check | --agent &lt;name&gt;]</code></td><td class="desc">Model and effort per agent tier.</td></tr>
+        <tr><td><code>aidlc config runtime [--show | --record-paths --yes | --reset --yes]</code></td><td class="desc">Runtime tool paths.</td></tr>
+        <tr><td><code>aidlc config trust [--show | --check | --acknowledge --yes]</code></td><td class="desc">Harness trust settings.</td></tr>
+        <tr><td><code>aidlc config trust --kiro-cli-workflows off --yes</code></td><td class="desc">Kiro CLI workflow trust (<span class="inline"><code>--kiro-workflows</code></span> for Kiro IDE).</td></tr>
+        <tr><td><code>aidlc config &lt;section&gt; --help</code></td><td class="desc">Section-specific help.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">4</span>Start work<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc &lt;describe the work&gt;</code></td><td class="desc">Start from a description. The agent proposes a plan (scope) for you to confirm.</td></tr>
+        <tr><td><code>/aidlc Read ./vision.md and build what it describes</code></td><td class="desc">Start from a vision doc (+ technical-environment.md). Read as data.</td></tr>
+        <tr><td><code>/aidlc &lt;scope&gt; [description]</code></td><td class="desc">Start with an explicit scope, e.g. <span class="inline"><code>/aidlc feature Add saved searches</code></span>.</td></tr>
+        <tr><td><code>/aidlc</code></td><td class="desc">Resume the open workflow. With no work yet, asks what to build.</td></tr>
+        <tr><td><code>/aidlc compose "&lt;task&gt;"</code></td><td class="desc">Adaptive composer: proposes a tailored EXECUTE/SKIP plan.</td></tr>
+        <tr><td><code>/aidlc compose --report &lt;path&gt;</code></td><td class="desc">Compose a fix-and-ship run from a scan report.</td></tr>
+        <tr><td><code>/aidlc --new-scope '&lt;task&gt;'</code></td><td class="desc">Force a custom plan even when a stock scope fits.</td></tr>
+        <tr><td><code>/aidlc-init --scope &lt;name&gt; &lt;description&gt;</code></td><td class="desc">Create the intent (Initialization phase) in one step, then stop.</td></tr>
+        <tr><td><code>/aidlc-init --scope &lt;name&gt;</code></td><td class="desc">Ask what the work is for, then start it.</td></tr>
+        <tr><td><code>/aidlc-compose</code></td><td class="desc">Typeable shortcut for <span class="inline"><code>/aidlc compose</code></span>.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">5</span>Status, resume &amp; navigate<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc --status</code></td><td class="desc">Read-only progress summary.</td></tr>
+        <tr><td><code>/aidlc park</code></td><td class="desc">Park at the current stage boundary for later or for another person.</td></tr>
+        <tr><td><code>/aidlc --stage &lt;slug|#&gt;</code></td><td class="desc">Jump to a stage, e.g. <span class="inline"><code>--stage code-generation</code></span> or <span class="inline"><code>--stage 3.5</code></span>. Skipped stages become <span class="inline"><code>[S]</code></span>.</td></tr>
+        <tr><td><code>/aidlc --phase &lt;name|#&gt;</code></td><td class="desc">Jump to the start of a phase (ideation, inception, construction, operation).</td></tr>
+        <tr><td><code>/aidlc --stage &lt;slug&gt; --single</code></td><td class="desc">Run one stage in isolation. Never moves your workflow pointer.</td></tr>
+        <tr><td><code>/aidlc --stage &lt;slug&gt; --unit &lt;unit&gt;</code></td><td class="desc">Re-run a stage for one unit of work.</td></tr>
+        <tr><td><code>/aidlc --resume --stage &lt;slug&gt;</code></td><td class="desc">Resume, targeting a specific stage.</td></tr>
+        <tr><td><code>redo this stage</code></td><td class="desc">Say it in chat: resets and re-runs the current stage (or the active unit's step).</td></tr>
+        <tr><td><code>start fresh</code></td><td class="desc">Say it in chat: starts a new intent beside the current one.</td></tr>
+        <tr><td><code>/aidlc --version</code> · <code>/aidlc --help</code></td><td class="desc">Framework version · usage.</td></tr>
+        <tr><td><code>/aidlc --doctor [--check-updates]</code></td><td class="desc">Health check from inside the session.</td></tr>
+        <tr><td><code>/aidlc --doctor --export</code></td><td class="desc">Fresh check + redacted diagnostic report.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">6</span>Change the plan<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc --scope &lt;name&gt;</code></td><td class="desc">Change the active scope (or start one on a fresh project).</td></tr>
+        <tr><td><code>/aidlc --skip &lt;slug,...&gt;</code></td><td class="desc">Drop pending stages now, e.g. <span class="inline"><code>--skip market-research,team-formation</code></span>.</td></tr>
+        <tr><td><code>/aidlc --add &lt;slug,...&gt;</code></td><td class="desc">Put stages back on the plan.</td></tr>
+        <tr><td><code>/aidlc --depth &lt;minimal|standard|comprehensive&gt;</code></td><td class="desc">Override artifact depth.</td></tr>
+        <tr><td><code>/aidlc --test-strategy &lt;minimal|standard|comprehensive&gt;</code></td><td class="desc">Override test strategy.</td></tr>
+        <tr><td><code>/aidlc --project-type &lt;greenfield|brownfield&gt;</code></td><td class="desc">New project or existing code. Brownfield mid-run re-scans and runs Reverse Engineering.</td></tr>
+        <tr><td><code>/aidlc --review &lt;adversarial|advisory|none&gt;</code></td><td class="desc">Stage reviewer level for this run (replaces scope cap).</td></tr>
+        <tr><td><code>save this plan as quick-fix</code></td><td class="desc">Say it in chat: keeps the current plan as a reusable scope (<span class="inline"><code>aidlc engine scope save</code></span>).</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">7</span>Workflow settings &amp; ceremony<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc --config [section]</code></td><td class="desc">Configure project policy conversationally.</td></tr>
+        <tr><td><code>/aidlc config list [--json]</code></td><td class="desc">All 13 active workflow settings.</td></tr>
+        <tr><td><code>/aidlc config get &lt;key&gt;</code></td><td class="desc">Keys: depth, test-strategy, review, guard-policy, sensors, learnings, summary-confirmation, plan-approval, collaborators, guard.&lt;fence&gt;.</td></tr>
+        <tr><td><code>/aidlc config set &lt;key&gt; &lt;value&gt; [--key value ...]</code></td><td class="desc">One atomic setter for several settings.</td></tr>
+        <tr><td><code>/aidlc --guard-policy &lt;strict|relaxed|off&gt;</code></td><td class="desc">How far guards stand aside for this work.</td></tr>
+        <tr><td><code>/aidlc config set guard.&lt;fence&gt; &lt;on|off&gt;</code></td><td class="desc">One fence: review-freeze, state-transition, reviewer-scope.</td></tr>
+        <tr><td><code>/aidlc --sensors &lt;on|off&gt;</code></td><td class="desc">Automatic sensors and blocking-sensor checks.</td></tr>
+        <tr><td><code>/aidlc --learnings &lt;on|off&gt;</code></td><td class="desc">Learning diary and learning gate.</td></tr>
+        <tr><td><code>/aidlc --summary-confirmation &lt;on|off&gt;</code></td><td class="desc">Consolidated-summary checkpoint.</td></tr>
+        <tr><td><code>/aidlc --plan-approval &lt;on|off&gt;</code></td><td class="desc">Show each code plan for approval before building (only the person can turn it off).</td></tr>
+        <tr><td><code>/aidlc --collaborators &lt;on|off&gt;</code></td><td class="desc">Bring in support agents, or lead agent only.</td></tr>
+        <tr><td><code>/aidlc --statusline &lt;on|off&gt;</code></td><td class="desc">AI-DLC progress in the status line.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">8</span>Intents &amp; spaces<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc intent [name]</code></td><td class="desc">List intents in the active space, or switch to one. <span class="inline"><code>--all</code></span> includes archived.</td></tr>
+        <tr><td><code>/aidlc intent archive &lt;name&gt;</code></td><td class="desc">Retire an intent without deleting its record (<span class="inline"><code>unarchive</code></span> restores).</td></tr>
+        <tr><td><code>/aidlc intent add-repo &lt;name&gt; [--url &lt;address&gt;]</code></td><td class="desc">Add a sibling repo, cloning it if needed (<span class="inline"><code>remove-repo</code></span> takes one out).</td></tr>
+        <tr><td><code>/aidlc intent set-repos &lt;name,...&gt;</code></td><td class="desc">Set exactly which repos the work covers (<span class="inline"><code>--all</code></span> keeps all).</td></tr>
+        <tr><td><code>/aidlc intent add-checkout &lt;path&gt;</code></td><td class="desc">Include code from another worktree in reviews (<span class="inline"><code>remove-checkout</code></span>).</td></tr>
+        <tr><td><code>/aidlc space [name]</code></td><td class="desc">List spaces, or switch to one.</td></tr>
+        <tr><td><code>/aidlc space-create &lt;name&gt;</code></td><td class="desc">New space with the default space's org rules.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">9</span>Team units (workshop / mob construction)<span class="where">chat</span></h2>
+      <table>
+        <tr><td><code>/aidlc team-board [--snapshot] [--space &lt;n&gt;] [--intent &lt;n&gt;]</code></td><td class="desc">Read-only board: unit progress, claims, merge readiness.</td></tr>
+        <tr><td><code>/aidlc unit status</code></td><td class="desc">Claimable, claimed and dependency-blocked units.</td></tr>
+        <tr><td><code>/aidlc unit participate</code></td><td class="desc">Mark this clone for the guided unit picker.</td></tr>
+        <tr><td><code>/aidlc unit claim &lt;unit&gt; --team "&lt;label&gt;"</code></td><td class="desc">Claim a unit and bind this checkout. Also <span class="inline"><code>--claim &lt;unit&gt; [--rhythm per-stage|unit-end]</code></span>.</td></tr>
+        <tr><td><code>/aidlc unit adopt &lt;unit&gt;</code></td><td class="desc">Adopt a teammate's live claim in a fresh clone.</td></tr>
+        <tr><td><code>/aidlc unit release &lt;unit&gt;</code></td><td class="desc">Release a claim (from unscoped main). Same as <span class="inline"><code>--release</code></span>.</td></tr>
+        <tr><td><code>/aidlc unit publish &lt;unit&gt;</code></td><td class="desc">Team: publish the clean, committed candidate to its claim ref.</td></tr>
+        <tr><td><code>/aidlc unit pin &lt;unit&gt;</code></td><td class="desc">Facilitator, on main: pin and validate the candidate.</td></tr>
+        <tr><td><code>/aidlc unit gate &lt;unit&gt; --decision approve --user-input "..."</code></td><td class="desc">Record the merge decision (<span class="inline"><code>approve</code></span> / <span class="inline"><code>reject</code></span>).</td></tr>
+        <tr><td><code>/aidlc unit land &lt;unit&gt; --target main</code></td><td class="desc">Merge, fold state and audit. Then <span class="inline"><code>git push origin main</code></span>.</td></tr>
+        <tr><td><code>/aidlc unit merge-status &lt;unit&gt;</code></td><td class="desc">Read the local merge transaction journal.</td></tr>
+      </table>
+      <p class="note">Flow: facilitator runs Inception as a mob, then teams claim → construct 3.1 to 3.5 → commit → publish; facilitator pins → gates → lands.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">10</span>Runner commands<span class="where">chat</span></h2>
+      <div class="ph">Scope-runners (scope fixed, no plan question)</div>
+      <table>
+        <tr><td><code>/aidlc-feature</code></td><td class="desc">= <span class="inline"><code>/aidlc --scope feature</code></span></td></tr>
+        <tr><td><code>/aidlc-bugfix &lt;bug description&gt;</code></td><td class="desc">= <span class="inline"><code>/aidlc --scope bugfix</code></span></td></tr>
+        <tr><td><code>/aidlc-express</code></td><td class="desc">Lightest run, no design pass or reviewers.</td></tr>
+        <tr><td><code>/aidlc-mvp</code></td><td class="desc">Skip late operations, ship the core.</td></tr>
+        <tr><td><code>/aidlc-security-patch</code></td><td class="desc">CVE response.</td></tr>
+      </table>
+      <div class="ph">Stage-runners (= <span class="inline"><code>/aidlc --stage &lt;slug&gt; --single</code></span>), 30 total</div>
+      <p class="note">Type <span class="inline"><code>/aidlc-&lt;slug&gt;</code></span> for any non-init stage in the stage table below, e.g.</p>
+      <div class="chips"><code>/aidlc-requirements-analysis</code><code>/aidlc-reverse-engineering</code><code>/aidlc-domain-design</code><code>/aidlc-units-generation</code><code>/aidlc-code-generation</code><code>/aidlc-build-and-test</code></div>
+      <div class="ph">Session skills (read-only)</div>
+      <table>
+        <tr><td><code>/aidlc-session-cost</code></td><td class="desc">Duration, stage outcomes, memory, sensors, learnings.</td></tr>
+        <tr><td><code>/aidlc-replay</code></td><td class="desc">Readable narrative of what was decided and why.</td></tr>
+        <tr><td><code>/aidlc-outcomes-pack</code></td><td class="desc">Handover doc. Writes <span class="inline"><code>OUTCOMES.md</code></span>.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">11</span>Knowledge (DocumentKB)<span class="where">chat</span></h2>
+      <p class="note">Put PDFs, Word, Markdown, text under <span class="inline"><code>aidlc/spaces/&lt;space&gt;/knowledge/documents/</code></span>. Also <span class="inline"><code>/aidlc-knowledge &lt;verb&gt;</code></span>; <span class="inline"><code>--space &lt;name&gt;</code></span> targets another space.</p>
+      <table>
+        <tr><td><code>/aidlc knowledge onboard [path]</code></td><td class="desc">Index a file/folder, or sweep all new files.</td></tr>
+        <tr><td><code>/aidlc knowledge sync</code></td><td class="desc">Reconcile the catalog with disk; retry extraction.</td></tr>
+        <tr><td><code>/aidlc knowledge list [--json]</code></td><td class="desc">Catalog with each document's state.</td></tr>
+        <tr><td><code>/aidlc knowledge show &lt;id&gt;</code></td><td class="desc">One record plus extracted text.</td></tr>
+        <tr><td><code>/aidlc knowledge associate &lt;id&gt; --intent [slug]</code></td><td class="desc">Scope a document to one intent (<span class="inline"><code>dissociate</code></span> removes).</td></tr>
+        <tr><td><code>/aidlc knowledge rebind &lt;id&gt; --to &lt;path&gt;</code></td><td class="desc">Repair a row whose file moved and changed.</td></tr>
+        <tr><td><code>/aidlc knowledge summarize &lt;id&gt; --text-file &lt;p&gt; --source-revision &lt;sha256&gt;</code></td><td class="desc">Store an LLM-written summary (+ <span class="inline"><code>--tags</code></span>).</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">12</span>Plugins<span class="where">chat / terminal</span></h2>
+      <table>
+        <tr><td><code>/aidlc plugin list</code></td><td class="desc">Installed plugins and enabled state.</td></tr>
+        <tr><td><code>/aidlc plugin select [names]</code></td><td class="desc">Show or set the enabled plugin list.</td></tr>
+        <tr><td><code>/aidlc plugin sync</code></td><td class="desc">Compose installed plugin roots into the install.</td></tr>
+        <tr><td><code>/aidlc plugin validate [path] [--with &lt;base&gt;] [--json]</code></td><td class="desc">Validate an authored plugin.</td></tr>
+        <tr><td><code>/aidlc plugin build &lt;harness&gt; [outDir]</code></td><td class="desc">Build a host plugin projection.</td></tr>
+        <tr><td><code>aidlc plugin test [path] --install &lt;project-root&gt;</code></td><td class="desc">Terminal: test a plugin against a copy of a project.</td></tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">13</span>Engine &amp; advanced<span class="where">terminal</span></h2>
+      <table>
+        <tr><td><code>aidlc engine bolt set-autonomy --mode gated</code></td><td class="desc">Construction stops for approval at each unit (<span class="inline"><code>autonomous</code></span> = continue automatically).</td></tr>
+        <tr><td><code>aidlc engine recompose --skip &lt;slug,...&gt; --add &lt;slug,...&gt;</code></td><td class="desc">Low-level plan flip behind <span class="inline"><code>--skip</code></span>/<span class="inline"><code>--add</code></span>.</td></tr>
+        <tr><td><code>aidlc engine scope save --name &lt;name&gt; [--keywords a,b]</code></td><td class="desc">Save the current plan as a scope in <span class="inline"><code>aidlc/scopes/</code></span>.</td></tr>
+        <tr><td><code>aidlc engine worktree restore --slug &lt;slug&gt; [--parked &lt;stamp&gt;]</code></td><td class="desc">Recover files from a set-aside attempt.</td></tr>
+        <tr><td><code>aidlc engine worktree purge --slug &lt;slug&gt; [--older-than &lt;days&gt;]</code></td><td class="desc">Remove local recovery refs.</td></tr>
+        <tr><td><code>aidlc engine swarm prepare | check | finalize</code></td><td class="desc">Parallel batch construction in native worktrees.</td></tr>
+        <tr><td><code>aidlc engine workspace reclassify</code></td><td class="desc">Switch new project vs existing code.</td></tr>
+        <tr><td><code>bun .kiro/tools/aidlc-graph.ts &lt;sub&gt;</code></td><td class="desc">Stage graph: compile, scope, validate-grid, validate-scope, topo, ars, producers, consumers...</td></tr>
+        <tr><td><code>bun .kiro/tools/aidlc-attest.ts resolve --diff origin/main...HEAD</code></td><td class="desc">Commit provenance check for a branch.</td></tr>
+      </table>
+      <p class="note">Tool paths use your harness folder (<span class="inline"><code>.kiro</code></span>, <span class="inline"><code>.claude</code></span>, ...). Also: <span class="inline"><code>aidlc-sensor</code></span>, <span class="inline"><code>aidlc-learnings</code></span>, <span class="inline"><code>aidlc-runtime</code></span>, <span class="inline"><code>aidlc-utility detect</code></span>.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">14</span>Scopes (workflow profiles)<span class="where">reference</span></h2>
+      <table class="ref">
+        <tr><th>Scope</th><th>Stages</th><th>Depth</th><th>Use for</th></tr>
+        <tr><td><code>classic</code></td><td>18</td><td>Standard</td><td class="desc">Inception + Construction. Implicit default.</td></tr>
+        <tr><td><code>express</code></td><td>10</td><td>Minimal</td><td class="desc">Requirements to deploy, no design or reviewers.</td></tr>
+        <tr><td><code>feature</code></td><td>33</td><td>Standard</td><td class="desc">Full lifecycle for new features.</td></tr>
+        <tr><td><code>enterprise</code></td><td>33</td><td>Comprehensive</td><td class="desc">Regulated, full audit trail.</td></tr>
+        <tr><td><code>mvp</code></td><td>23</td><td>Standard</td><td class="desc">Greenfield, skip late operations.</td></tr>
+        <tr><td><code>poc</code></td><td>8</td><td>Minimal</td><td class="desc">Prove feasibility fast.</td></tr>
+        <tr><td><code>bugfix</code></td><td>9</td><td>Minimal</td><td class="desc">Fix and deploy a specific bug.</td></tr>
+        <tr><td><code>refactor</code></td><td>10</td><td>Minimal</td><td class="desc">Clean up existing code.</td></tr>
+        <tr><td><code>infra</code></td><td>13</td><td>Standard</td><td class="desc">Infrastructure change.</td></tr>
+        <tr><td><code>security-patch</code></td><td>10</td><td>Minimal</td><td class="desc">CVE response.</td></tr>
+        <tr><td><code>workshop</code></td><td>26</td><td>Standard</td><td class="desc">Facilitated group session, mandatory gates, minimal tests.</td></tr>
+      </table>
+      <p class="note">Units of work (2.7) run only in classic, feature, enterprise, mvp, workshop. Default scope: env <span class="inline"><code>AWS_AIDLC_DEFAULT_SCOPE</code></span> &gt; <span class="inline"><code>config flags --default-scope</code></span> &gt; classic.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">15</span>Stages (for --stage / runners)<span class="where">reference</span></h2>
+      <div class="ph">0 Initialization (automatic, no runners)</div>
+      <div class="chips"><code>0.1 workspace-scaffold</code><code>0.2 workspace-detection</code><code>0.3 state-init</code></div>
+      <div class="ph">1 Ideation</div>
+      <div class="chips"><code>1.1 intent-capture</code><code>1.2 market-research</code><code>1.3 feasibility</code><code>1.4 scope-definition</code><code>1.5 team-formation</code><code>1.6 rough-mockups</code><code>1.7 approval-handoff</code></div>
+      <div class="ph">2 Inception</div>
+      <div class="chips"><code>2.1 reverse-engineering</code><code>2.2 practices-discovery</code><code>2.3 requirements-analysis</code><code>2.4 user-stories</code><code>2.5 refined-mockups</code><code>2.6 domain-design</code><code>2.7 units-generation</code><code>2.8 contract-design</code><code>2.9 delivery-planning</code></div>
+      <div class="ph">3 Construction (3.1 to 3.5 per unit)</div>
+      <div class="chips"><code>3.1 functional-design</code><code>3.2 nfr-requirements</code><code>3.3 nfr-design</code><code>3.4 infrastructure-design</code><code>3.5 code-generation</code><code>3.6 build-and-test</code><code>3.7 ci-pipeline</code></div>
+      <div class="ph">4 Operation</div>
+      <div class="chips"><code>4.1 deployment-pipeline</code><code>4.2 environment-provisioning</code><code>4.3 deployment-execution</code><code>4.4 observability-setup</code><code>4.5 incident-response</code><code>4.6 performance-validation</code><code>4.7 feedback-optimization</code></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="n">16</span>Env vars, exit codes, files<span class="where">reference</span></h2>
+      <table>
+        <tr><td><code>AWS_AIDLC_DEFAULT_SCOPE=feature</code></td><td class="desc">Default scope at workflow start.</td></tr>
+        <tr><td><code>AIDLC_DISABLE_SENSORS=1</code></td><td class="desc">Force sensors off (also <span class="inline"><code>AIDLC_DISABLE_LEARNINGS</code></span>, <span class="inline"><code>AIDLC_DISABLE_SUMMARY_CONFIRMATION</code></span>).</td></tr>
+        <tr><td><code>AIDLC_UNATTENDED=1</code></td><td class="desc">Unattended run: refuses plan changes nobody approved.</td></tr>
+        <tr><td><code>AIDLC_ALLOW_ROOT=1</code></td><td class="desc">Allow install as root (containers / CI). Same as <span class="inline"><code>--allow-root</code></span>.</td></tr>
+        <tr><td><code>NO_COLOR=1</code> · <code>FORCE_COLOR=1</code></td><td class="desc">Disable / force terminal colour.</td></tr>
+      </table>
+      <table class="ref">
+        <tr><th>Exit</th><th>Meaning</th></tr>
+        <tr><td>0</td><td class="desc">Success</td></tr>
+        <tr><td>1</td><td class="desc">Operational failure</td></tr>
+        <tr><td>2</td><td class="desc">Usage or invalid config</td></tr>
+        <tr><td>3</td><td class="desc">Network result or runtime unavailable</td></tr>
+        <tr><td>4</td><td class="desc">Integrity or ownership refusal</td></tr>
+        <tr><td>5</td><td class="desc">Action required (e.g. update available)</td></tr>
+      </table>
+      <p class="note">Run record: <span class="inline"><code>aidlc/spaces/&lt;space&gt;/intents/&lt;YYMMDD&gt;-&lt;label&gt;/</code></span> with <span class="inline"><code>aidlc-state.md</code></span>, <span class="inline"><code>audit/</code></span> and <span class="inline"><code>&lt;phase&gt;/&lt;stage&gt;/*.md</code></span> artifacts.</p>
+    </section>
+
+  </div>
+</main>
+<footer>Source: <a href="https://github.com/awslabs/aidlc-workflows">github.com/awslabs/aidlc-workflows</a>, docs/guide/12-cli-commands.md, 17-skills.md, 18-install-and-lifecycle.md, 05-scopes-and-depth.md, 04-phases-and-stages.md (release 2.11.3). Full option lists: <code style="cursor:default">aidlc &lt;command&gt; --help</code> and <code style="cursor:default">/aidlc --help</code>.</footer>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="/cheatsheet.js"></script>
+</body>
+</html>

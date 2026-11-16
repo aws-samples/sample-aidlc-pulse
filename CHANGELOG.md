@@ -2,7 +2,9 @@
 
 All notable changes to AI-DLC Pulse. Releases are published to [aws-samples/sample-aidlc-pulse](https://github.com/aws-samples/sample-aidlc-pulse). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The version is set in `version.py` and shown in the dashboard header.
 
-## [Unreleased]
+## [1.1.1] - 2026-11-16
+
+Tested against AI-DLC 2.11 (release 2.11.4). Changes since 1.1.0.
 
 ### Changed
 

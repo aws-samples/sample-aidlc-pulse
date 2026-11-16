@@ -17,7 +17,7 @@ Tested against AI-DLC 2.11 (release 2.11.3). Changes since the 1.0.0 sample rele
 - **Project layout:** Python modules moved to `src/` and the browser files to `src/static/`, next to `tests/`. The start command is unchanged (`python3 server.py --project …`); the root `server.py` is now a small launcher and the HTTP server is `src/http_server.py`.
 - **Project folder prompt:** `python3 server.py` without `--project` asks for the AI-DLC project folder (paste or drag it in; Enter uses the current folder if it's a project). `python3 server.py <folder>` also works.
 - **Version number:** Pulse's own version in the dashboard header and the HTTP `Server` header.
-- **Tests and CI:** 60+ standard-library `unittest` tests on synthetic projects (reader, timing, units, decisions, server, strict-CSP checks), and CI on Python 3.11 and 3.13 (GitHub Actions, with the same jobs in GitLab CI). A CI job checks that every audit event name Pulse matches still exists in the tested AI-DLC release, and a weekly job checks the newest release.
+- **Tests and CI:** 60+ standard-library `unittest` tests on synthetic projects (reader, timing, units, decisions, server, strict-CSP checks), and CI on Python 3.11 and 3.13 (GitHub Actions). A CI job checks that every audit event name Pulse matches still exists in the tested AI-DLC release, and a weekly job checks the newest release.
 
 ### Changed
 

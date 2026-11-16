@@ -17,8 +17,8 @@ from pathlib import Path
 import events
 
 ROOT = Path(__file__).resolve().parent.parent
-# GitHub Actions in the public repo, GitLab CI in the maintainers' copy. Whichever are present must agree.
-CI_CONFIGS = (".github/workflows/tests.yml", ".gitlab-ci.yml")
+# CI config that must pin the tested AI-DLC release.
+CI_CONFIGS = (".github/workflows/tests.yml",)
 SOURCES = ["src/reader.py", "src/insights.py", "src/units.py", "src/decisions.py", "src/static/app.js"]
 EVENT_LITERAL = re.compile(r"[\"']([A-Z]+(?:_[A-Z]+)+)[\"']")
 NOT_EVENTS = {"TESTED_AIDLC_VERSIONS", "TESTED_AIDLC_RELEASE"}

@@ -10,7 +10,7 @@ from __future__ import annotations
 # AI-DLC releases Pulse is tested against, as "major.minor". A project on another release still works,
 # but the dashboard shows a warning because event names or file layouts may have changed.
 TESTED_AIDLC_VERSIONS = ("2.11",)
-TESTED_AIDLC_RELEASE = "2.11.3"
+TESTED_AIDLC_RELEASE = "2.11.4"
 
 STAGE_STARTED = "STAGE_STARTED"
 STAGE_AWAITING_APPROVAL = "STAGE_AWAITING_APPROVAL"

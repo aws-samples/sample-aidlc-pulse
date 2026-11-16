@@ -50,7 +50,7 @@ python3 server.py --project /path/to/your-aidlc-project
 | `--stall-minutes` | `15` | How long a working stage can go without audit activity before it's flagged as possibly stalled (1–1440) |
 | `--harness` | first found | Harness folder to read (`.kiro`, `.claude`, `.codex`, `.cursor`, `.opencode`) when more than one is installed. AI-DLC records don't say which harness ran them, so with several installed the dashboard shows a warning |
 
-Tested against AI-DLC 2.11 (release 2.11.3). The header shows the project's AI-DLC release from `<harness>/tools/data/aidlc-stamp.json`; on another release the dashboard shows a warning, because event names or file layouts may have changed.
+Tested against AI-DLC 2.11 (release 2.11.4). The header shows the project's AI-DLC release from `<harness>/tools/data/aidlc-stamp.json`; on another release the dashboard shows a warning, because event names or file layouts may have changed.
 
 The page checks for changes every 5 seconds (every 15 seconds in a background tab) and only redraws when something changed.
 
@@ -212,7 +212,7 @@ python3 -m unittest discover -s tests -t .
 The tests build small synthetic projects in a temp folder, so they need no AI-DLC install. To also check that the audit event names Pulse matches still exist in AI-DLC, point the tests at the engine source:
 
 ```bash
-git clone --depth 1 --branch v2.11.3 https://github.com/awslabs/aidlc-workflows.git /tmp/aidlc-src
+git clone --depth 1 --branch v2.11.4 https://github.com/awslabs/aidlc-workflows.git /tmp/aidlc-src
 AIDLC_SOURCE=/tmp/aidlc-src python3 -m unittest tests.test_events -v
 # or, in an installed project: AIDLC_AUDIT_TS=<project>/.kiro/tools/aidlc-audit.ts
 ```

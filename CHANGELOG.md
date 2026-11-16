@@ -2,6 +2,12 @@
 
 All notable changes to AI-DLC Pulse. Releases are published to [aws-samples/sample-aidlc-pulse](https://github.com/aws-samples/sample-aidlc-pulse). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The version is set in `version.py` and shown in the dashboard header.
 
+## [Unreleased]
+
+### Changed
+
+- **Tested against AI-DLC 2.11.4** (was 2.11.3). The upstream event-name check passes against v2.11.4, which only adds event names Pulse doesn't use. CI now pins `v2.11.4`. The commands cheatsheet still covers 2.11.3, so commands new in 2.11.4 (for example `/aidlc unit share` and plugin commands) aren't listed yet.
+
 ## [1.1.0] - 2026-11-11
 
 Tested against AI-DLC 2.11 (release 2.11.3). Changes since the 1.0.0 sample release.

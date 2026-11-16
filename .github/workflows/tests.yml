@@ -19,7 +19,7 @@ concurrency:
 
 env:
   # Keep in sync with events.TESTED_AIDLC_RELEASE (tests/test_events.py checks this).
-  AIDLC_RELEASE: "v2.11.3"
+  AIDLC_RELEASE: "v2.11.4"
   AIDLC_REPO: "https://github.com/awslabs/aidlc-workflows.git"
   PYTHONDONTWRITEBYTECODE: "1"
 

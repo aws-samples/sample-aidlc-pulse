@@ -6,7 +6,8 @@ All notable changes to AI-DLC Pulse. Releases are published to [aws-samples/samp
 
 ### Changed
 
-- **Tested against AI-DLC 2.11.4** (was 2.11.3). The upstream event-name check passes against v2.11.4, which only adds event names Pulse doesn't use. CI now pins `v2.11.4`. The commands cheatsheet still covers 2.11.3, so commands new in 2.11.4 (for example `/aidlc unit share` and plugin commands) aren't listed yet.
+- **Tested against AI-DLC 2.11.4** (was 2.11.3). The upstream event-name check passes against v2.11.4, which only adds event names Pulse doesn't use. CI now pins `v2.11.4`.
+- **Commands cheatsheet updated for AI-DLC 2.11.4:** the Kiro harness names (`--harness kiro` is now Kiro IDE and Kiro CLI on its v3 engine, `kiro-v2` is Kiro CLI on its v2 engine, and `kiro-ide` still works), `/aidlc unit share`, `unit publish --commit/--include`, plugin commands (`/aidlc <plugin command>`), `knowledge onboard` with several paths, `/aidlc-issue-report`, and the `infra` scope's stage count (15).
 
 ## [1.1.0] - 2026-11-11
 

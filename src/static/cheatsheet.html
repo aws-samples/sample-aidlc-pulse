@@ -10,7 +10,7 @@
 <header>
   <div class="bar">
     <h1>AI-DLC <span>Commands Cheatsheet</span></h1>
-    <span class="meta">awslabs/aidlc-workflows · v2.11.3 (4 Nov 2026)</span>
+    <span class="meta">awslabs/aidlc-workflows · v2.11.4 (13 Nov 2026)</span>
     <span class="spacer"></span>
     <input id="q" type="search" placeholder="Filter commands, e.g. unit, scope, doctor" aria-label="Filter commands">
     <a class="btn" href="/">← Dashboard</a>
@@ -35,7 +35,7 @@
         <tr><td><code>irm https://github.com/awslabs/aidlc-workflows/releases/latest/download/install.ps1 | iex</code></td><td class="desc">Install on Windows PowerShell (normal, non-admin window).</td></tr>
         <tr><td><code>export PATH="$HOME/.local/bin:$PATH"</code></td><td class="desc">Put <span class="inline"><code>aidlc</code></span> on PATH for this shell.</td></tr>
         <tr><td><code>aidlc config</code></td><td class="desc">Set up or refresh the current project (interactive: picks or asks for the harness).</td></tr>
-        <tr><td><code>aidlc config --harness kiro-ide</code></td><td class="desc">Set up for a named harness: <span class="inline"><code>kiro-ide</code></span> (Kiro IDE ≥1.1.70, Kiro CLI ≥2.24.1), <span class="inline"><code>kiro</code></span>, <span class="inline"><code>claude</code></span>, <span class="inline"><code>codex</code></span>, <span class="inline"><code>cursor</code></span>, <span class="inline"><code>opencode</code></span>, <span class="inline"><code>copilot</code></span>.</td></tr>
+        <tr><td><code>aidlc config --harness kiro</code></td><td class="desc">Set up for a named harness: <span class="inline"><code>kiro</code></span> (Kiro IDE ≥1.1.70 and Kiro CLI ≥2.24.1 on its v3 engine; <span class="inline"><code>kiro-ide</code></span> still works), <span class="inline"><code>kiro-v2</code></span> (Kiro CLI on its v2 engine), <span class="inline"><code>claude</code></span>, <span class="inline"><code>codex</code></span>, <span class="inline"><code>cursor</code></span>, <span class="inline"><code>opencode</code></span>, <span class="inline"><code>copilot</code></span>.</td></tr>
         <tr><td><code>aidlc config --harness claude --dry-run</code></td><td class="desc">Preview the full plan without changing any files.</td></tr>
         <tr><td><code>aidlc config --yes</code></td><td class="desc">Non-interactive refresh / confirm.</td></tr>
         <tr><td><code>aidlc doctor</code></td><td class="desc">Health check of machine, project and framework integrity.</td></tr>
@@ -170,7 +170,8 @@
         <tr><td><code>/aidlc unit claim &lt;unit&gt; --team "&lt;label&gt;"</code></td><td class="desc">Claim a unit and bind this checkout. Also <span class="inline"><code>--claim &lt;unit&gt; [--rhythm per-stage|unit-end]</code></span>.</td></tr>
         <tr><td><code>/aidlc unit adopt &lt;unit&gt;</code></td><td class="desc">Adopt a teammate's live claim in a fresh clone.</td></tr>
         <tr><td><code>/aidlc unit release &lt;unit&gt;</code></td><td class="desc">Release a claim (from unscoped main). Same as <span class="inline"><code>--release</code></span>.</td></tr>
-        <tr><td><code>/aidlc unit publish &lt;unit&gt;</code></td><td class="desc">Team: publish the clean, committed candidate to its claim ref.</td></tr>
+        <tr><td><code>/aidlc unit share</code></td><td class="desc">Facilitator: commit the work here and push the integration branch so teams can take units.</td></tr>
+        <tr><td><code>/aidlc unit publish &lt;unit&gt; [--commit [--include &lt;path&gt;]...]</code></td><td class="desc">Team: publish the clean, committed candidate to its claim ref. <span class="inline"><code>--commit</code></span> commits the unit's own work first; <span class="inline"><code>--include</code></span> adds a file or folder it left out.</td></tr>
         <tr><td><code>/aidlc unit pin &lt;unit&gt;</code></td><td class="desc">Facilitator, on main: pin and validate the candidate.</td></tr>
         <tr><td><code>/aidlc unit gate &lt;unit&gt; --decision approve --user-input "..."</code></td><td class="desc">Record the merge decision (<span class="inline"><code>approve</code></span> / <span class="inline"><code>reject</code></span>).</td></tr>
         <tr><td><code>/aidlc unit land &lt;unit&gt; --target main</code></td><td class="desc">Merge, fold state and audit. Then <span class="inline"><code>git push origin main</code></span>.</td></tr>
@@ -198,13 +199,17 @@
         <tr><td><code>/aidlc-replay</code></td><td class="desc">Readable narrative of what was decided and why.</td></tr>
         <tr><td><code>/aidlc-outcomes-pack</code></td><td class="desc">Handover doc. Writes <span class="inline"><code>OUTCOMES.md</code></span>.</td></tr>
       </table>
+      <div class="ph">Troubleshooting</div>
+      <table>
+        <tr><td><code>/aidlc-issue-report</code></td><td class="desc">When a run went wrong: a run's records, with sensitive details removed, to send to the AI-DLC team. Builds on <span class="inline"><code>/aidlc --doctor --export</code></span>.</td></tr>
+      </table>
     </section>
 
     <section class="card">
       <h2><span class="n">11</span>Knowledge (DocumentKB)<span class="where">chat</span></h2>
       <p class="note">Put PDFs, Word, Markdown, text under <span class="inline"><code>aidlc/spaces/&lt;space&gt;/knowledge/documents/</code></span>. Also <span class="inline"><code>/aidlc-knowledge &lt;verb&gt;</code></span>; <span class="inline"><code>--space &lt;name&gt;</code></span> targets another space.</p>
       <table>
-        <tr><td><code>/aidlc knowledge onboard [path]</code></td><td class="desc">Index a file/folder, or sweep all new files.</td></tr>
+        <tr><td><code>/aidlc knowledge onboard [path ...]</code></td><td class="desc">Index one or more files/folders, or sweep all new files. A path that can't be added is named with why; the others still go in.</td></tr>
         <tr><td><code>/aidlc knowledge sync</code></td><td class="desc">Reconcile the catalog with disk; retry extraction.</td></tr>
         <tr><td><code>/aidlc knowledge list [--json]</code></td><td class="desc">Catalog with each document's state.</td></tr>
         <tr><td><code>/aidlc knowledge show &lt;id&gt;</code></td><td class="desc">One record plus extracted text.</td></tr>
@@ -217,6 +222,7 @@
     <section class="card">
       <h2><span class="n">12</span>Plugins<span class="where">chat / terminal</span></h2>
       <table>
+        <tr><td><code>/aidlc &lt;plugin command&gt; [args]</code></td><td class="desc">Run a command an installed plugin adds (<span class="inline"><code>aidlc &lt;name&gt;</code></span> in a terminal); <span class="inline"><code>aidlc --help</code></span> lists them under their plugin.</td></tr>
         <tr><td><code>/aidlc plugin list</code></td><td class="desc">Installed plugins and enabled state.</td></tr>
         <tr><td><code>/aidlc plugin select [names]</code></td><td class="desc">Show or set the enabled plugin list.</td></tr>
         <tr><td><code>/aidlc plugin sync</code></td><td class="desc">Compose installed plugin roots into the install.</td></tr>
@@ -254,7 +260,7 @@
         <tr><td><code>poc</code></td><td>8</td><td>Minimal</td><td class="desc">Prove feasibility fast.</td></tr>
         <tr><td><code>bugfix</code></td><td>9</td><td>Minimal</td><td class="desc">Fix and deploy a specific bug.</td></tr>
         <tr><td><code>refactor</code></td><td>10</td><td>Minimal</td><td class="desc">Clean up existing code.</td></tr>
-        <tr><td><code>infra</code></td><td>13</td><td>Standard</td><td class="desc">Infrastructure change.</td></tr>
+        <tr><td><code>infra</code></td><td>15</td><td>Standard</td><td class="desc">Infrastructure change.</td></tr>
         <tr><td><code>security-patch</code></td><td>10</td><td>Minimal</td><td class="desc">CVE response.</td></tr>
         <tr><td><code>workshop</code></td><td>26</td><td>Standard</td><td class="desc">Facilitated group session, mandatory gates, minimal tests.</td></tr>
       </table>
@@ -298,7 +304,7 @@
 
   </div>
 </main>
-<footer>Source: <a href="https://github.com/awslabs/aidlc-workflows">github.com/awslabs/aidlc-workflows</a>, docs/guide/12-cli-commands.md, 17-skills.md, 18-install-and-lifecycle.md, 05-scopes-and-depth.md, 04-phases-and-stages.md (release 2.11.3). Full option lists: <code class="plain">aidlc &lt;command&gt; --help</code> and <code class="plain">/aidlc --help</code>.</footer>
+<footer>Source: <a href="https://github.com/awslabs/aidlc-workflows">github.com/awslabs/aidlc-workflows</a>, docs/guide/12-cli-commands.md, 17-skills.md, 18-install-and-lifecycle.md, 05-scopes-and-depth.md, 04-phases-and-stages.md (release 2.11.4). Full option lists: <code class="plain">aidlc &lt;command&gt; --help</code> and <code class="plain">/aidlc --help</code>.</footer>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/cheatsheet.js"></script>

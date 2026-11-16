@@ -202,13 +202,6 @@ def _closed_segments(evs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], d
         if nxt:
             open_[unit] = (nxt, ts)
     return segments, open_
-    sums = {k: sum(s["seconds"] for s in segments if s["kind"] == k) for k in ("agent", "human", "rework")}
-    return {
-        "slug": stage["slug"], "id": stage.get("id"), "phase": stage.get("phase"), "status": stage["status"],
-        "lead": (stage.get("meta") or {}).get("lead"),
-        "segments": segments, **sums, "total": sum(sums.values()),
-        "rejections": sum(1 for e in evs if e["event"] == "GATE_REJECTED"),
-    }
 
 
 def _totals(rows: list[dict[str, Any]]) -> dict[str, Any]:

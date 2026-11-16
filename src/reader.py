@@ -1,11 +1,16 @@
 """Read-only parser that turns an AI-DLC v2 project's files into a status model.
 
 Sources (all read, never written):
-  * <harness>/tools/data/scope-grid.json      canonical stage order + per-scope EXECUTE/SKIP
-  * <harness>/aidlc-common/stages/**.md       stage frontmatter (lead, reviewer, produces, ...)
+  * <harness>/tools/data/stage-graph.json     stage order, numbers, names and metadata (lead, reviewer, ...)
+  * <harness>/tools/data/scope-grid.json      stage order fallback (older installs)
+  * <harness>/aidlc-common/stages/**.md       stage frontmatter, when there is no stage graph
+  * <harness>/tools/data/aidlc-stamp.json     installed AI-DLC release
   * aidlc/spaces/<space>/intents/<intent>/    v2 intent records (aidlc-state.md, audit/, artifacts)
+  * aidlc/spaces/<space>/intents/audit/       space-level audit shard (events not bound to one intent)
   * aidlc-docs/                               legacy flat record (pre-workspace layout)
   * aidlc/.aidlc-sessions/                    current session and pending engine questions
+
+Files are cached by (mtime, size), so a poll only re-reads and re-parses what changed.
 """
 
 from __future__ import annotations
@@ -13,16 +18,24 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+import decisions
+import events as ev_names
 import insights
 import units
+from version import PULSE_VERSION
 
 log = logging.getLogger("aidlc-pulse")
 
 HARNESS_DIRS = (".kiro", ".claude", ".codex", ".cursor", ".opencode")
+STAGE_GRAPH = Path("tools") / "data" / "stage-graph.json"
+STAMP_FILE = Path("tools") / "data" / "aidlc-stamp.json"
+CACHE_MAX_BYTES = 128 * 1024 * 1024
 PHASES = ("initialization", "ideation", "inception", "construction", "operation")
 LEGACY_RECORD_DIR = "aidlc-docs"
 LEGACY_RECORD_ID = "legacy"
@@ -53,10 +66,12 @@ ORCHESTRATOR = "orchestrator"
 ACTIVE_STATUSES = ("in-progress", "revising", "awaiting-approval")
 # Audit fields that name the agent an event belongs to, in priority order.
 AGENT_FIELDS = ("Agent", "Agent Type", "Reviewer", "Dispatch Agent")
-RUN_LEVEL_PREFIXES = ("PHASE_", "SESSION_", "WORKFLOW_", "WORKSPACE_", "HEALTH_", "GUARDRAIL_")
+RUN_LEVEL_PREFIXES = ev_names.RUN_LEVEL_PREFIXES
 MAX_ARTIFACT_BYTES = 512_000
 MAX_TEXT_BYTES = 16 * 1024 * 1024  # cap on any single state, audit or session file read
+MAX_PATH_SEGMENT = 255
 ARTIFACT_SUFFIXES = (".md", ".json", ".yaml", ".yml", ".txt", ".html", ".mmd")
+CONSTRUCTION_PHASE = "construction"
 
 _BULLET = re.compile(r"^- \*\*(.+?)\*\*:\s*(.*)$")
 _STAGE_LINE = re.compile(r"^- \[(.)\]\s+([A-Za-z0-9-]+)\s+[—-]+\s+(EXECUTE|SKIP)\b", re.I)
@@ -64,7 +79,9 @@ _PHASE_HEAD = re.compile(r"^###\s+(\w+)\s+PHASE", re.I)
 _SECTION_HEAD = re.compile(r"^##\s+(.+?)\s*$")
 _FIELD = re.compile(r"^\*\*(.+?)\*\*:\s*(.*)$")
 _FRONTMATTER = re.compile(r"\A---\n(.*?)\n---", re.S)
-_SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
+# Path segments may hold any printable character (spaces, accents, CJK, ...) except separators and controls.
+_UNSAFE_SEGMENT = re.compile(r"[\x00-\x1f\x7f/\\]")
+_VERSION = re.compile(r"^(\d+)\.(\d+)")
 
 
 class RecordNotFound(LookupError):
@@ -78,8 +95,53 @@ class ArtifactRefused(PermissionError):
 # --------------------------------------------------------------------------- helpers
 
 
+class FileCache:
+    """Values derived from a file, reused while the file's (mtime_ns, size) is unchanged. LRU, capped by bytes."""
+
+    def __init__(self, max_bytes: int) -> None:
+        self._max = max_bytes
+        self._used = 0
+        self._rows: OrderedDict[tuple[str, str], tuple[tuple[int, int], Any, int]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, path: Path, kind: str, build: Callable[[Path], Any]) -> Any:
+        stat = path.stat()  # OSError propagates: callers already handle missing files
+        key, sig = (str(path), kind), (stat.st_mtime_ns, stat.st_size)
+        with self._lock:
+            row = self._rows.get(key)
+            if row and row[0] == sig:
+                self._rows.move_to_end(key)
+                return row[1]
+        value = build(path)
+        self._put(key, sig, value, stat.st_size)
+        return value
+
+    def _put(self, key: tuple[str, str], sig: tuple[int, int], value: Any, size: int) -> None:
+        with self._lock:
+            old = self._rows.pop(key, None)
+            self._used -= old[2] if old else 0
+            if size > self._max:
+                return
+            self._rows[key] = (sig, value, size)
+            self._used += size
+            while self._used > self._max and self._rows:
+                self._used -= self._rows.popitem(last=False)[1][2]
+
+    def clear(self) -> None:
+        with self._lock:
+            self._rows.clear()
+            self._used = 0
+
+
+CACHE = FileCache(CACHE_MAX_BYTES)
+
+
 def _read_text(path: Path) -> str:
-    """Read at most MAX_TEXT_BYTES so one huge project file can't exhaust memory."""
+    """File text via the cache; at most MAX_TEXT_BYTES so one huge project file can't exhaust memory."""
+    return CACHE.get(path, "text", _read_text_uncached)
+
+
+def _read_text_uncached(path: Path) -> str:
     with path.open("rb") as fh:
         data = fh.read(MAX_TEXT_BYTES + 1)
     if len(data) > MAX_TEXT_BYTES:
@@ -133,12 +195,53 @@ def _scalar(raw: str) -> Any:
 # --------------------------------------------------------------------------- harness / catalog
 
 
-def find_harness(root: Path) -> Path | None:
+def find_harnesses(root: Path) -> list[Path]:
+    """Every installed AI-DLC harness dir, in HARNESS_DIRS order."""
+    found = []
     for name in HARNESS_DIRS:
         candidate = root / name
-        if (candidate / STAGES_DIR).is_dir() or (candidate / SCOPE_GRID).is_file():
-            return candidate
-    return None
+        if (candidate / STAGE_GRAPH).is_file() or (candidate / STAGES_DIR).is_dir() or (candidate / SCOPE_GRID).is_file():
+            found.append(candidate)
+    return found
+
+
+def select_harness(root: Path, preferred: str | None = None) -> tuple[Path | None, list[str]]:
+    """(harness, warnings). `preferred` is a harness dir name such as ".claude"; otherwise the first found.
+
+    AI-DLC records don't say which harness ran them, so with several installed the choice is reported."""
+    found = find_harnesses(root)
+    if preferred:
+        match = next((h for h in found if h.name == preferred), None)
+        if match is None:
+            fallback = found[0].name if found else "none"
+            return (found[0] if found else None), [f"Harness {preferred} not found in this project; using {fallback}."]
+        return match, []
+    if len(found) > 1:
+        names = ", ".join(h.name for h in found)
+        warning = (f"Several AI-DLC harnesses are installed ({names}); using {found[0].name}. "
+                   "Start Pulse with --harness to pick another.")
+        return found[0], [warning]
+    return (found[0] if found else None), []
+
+
+def find_harness(root: Path) -> Path | None:
+    return select_harness(root)[0]
+
+
+def aidlc_version(harness: Path | None) -> str | None:
+    stamp = _read_json(harness / STAMP_FILE) if harness else None
+    version = stamp.get("frameworkVersion") if isinstance(stamp, dict) else None
+    return version if isinstance(version, str) and version else None
+
+
+def version_warning(version: str | None) -> str | None:
+    if version is None:
+        return None
+    m = _VERSION.match(version)
+    if m and f"{m.group(1)}.{m.group(2)}" in ev_names.TESTED_AIDLC_VERSIONS:
+        return None
+    return (f"This project uses AI-DLC {version}; Pulse is tested against {ev_names.TESTED_AIDLC_RELEASE}. "
+            "Some figures may be missing or wrong if event names or file layouts changed.")
 
 
 def load_scope_grid(harness: Path | None) -> dict[str, dict[str, str]]:
@@ -148,8 +251,19 @@ def load_scope_grid(harness: Path | None) -> dict[str, dict[str, str]]:
     return {name: body.get("stages", {}) for name, body in data.items() if isinstance(body, dict)}
 
 
-def load_stage_catalog(harness: Path | None) -> dict[str, dict[str, Any]]:
-    """Stage slug -> frontmatter-derived metadata."""
+def load_stage_graph(harness: Path | None) -> list[dict[str, Any]]:
+    """The engine's compiled stage list (canonical order), or [] when absent or malformed."""
+    data = _read_json(harness / STAGE_GRAPH) if harness else None
+    if not isinstance(data, list):
+        return []
+    return [row for row in data if isinstance(row, dict) and isinstance(row.get("slug"), str)]
+
+
+def load_stage_catalog(harness: Path | None, graph: list[dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+    """Stage slug -> metadata. The stage graph wins; stage-file frontmatter fills in when there is no graph."""
+    graph = load_stage_graph(harness) if graph is None else graph
+    if graph:
+        return {row["slug"]: _stage_meta(row, None) for row in graph}
     catalog: dict[str, dict[str, Any]] = {}
     if harness is None or not (harness / STAGES_DIR).is_dir():
         return catalog
@@ -160,13 +274,15 @@ def load_stage_catalog(harness: Path | None) -> dict[str, dict[str, Any]]:
     return catalog
 
 
-def _stage_meta(fm: dict[str, Any], path: Path) -> dict[str, Any]:
+def _stage_meta(fm: dict[str, Any], path: Path | None) -> dict[str, Any]:
     def as_list(key: str) -> list[str]:
         value = fm.get(key)
-        return value if isinstance(value, list) else ([value] if value else [])
+        return [str(v) for v in value] if isinstance(value, list) else ([str(value)] if value else [])
 
     return {
-        "phase": str(fm.get("phase") or path.parent.name).lower(),
+        "phase": str(fm.get("phase") or (path.parent.name if path else "")).lower(),
+        "name": fm.get("name") or None,
+        "number": str(fm["number"]) if fm.get("number") else None,
         "lead": fm.get("lead_agent") or None,
         "support": as_list("support_agents"),
         "reviewer": fm.get("reviewer") or None,
@@ -177,24 +293,36 @@ def _stage_meta(fm: dict[str, Any], path: Path) -> dict[str, Any]:
     }
 
 
-def canonical_order(grid: dict[str, dict[str, str]], catalog: dict[str, dict[str, Any]]) -> list[str]:
-    """Stage order from the compiled grid; falls back to phase order + slug."""
+def canonical_order(grid: dict[str, dict[str, str]], catalog: dict[str, dict[str, Any]],
+                    graph: list[dict[str, Any]] | None = None) -> tuple[list[str], str]:
+    """(stage order, source). Stage graph first, then the compiled scope grid, then phase order + slug."""
+    if graph:
+        return [row["slug"] for row in graph], "stage-graph"
     for stages in grid.values():
         if stages:
-            return list(stages.keys())
-    return sorted(catalog, key=lambda s: (PHASES.index(catalog[s]["phase"]) if catalog[s]["phase"] in PHASES else 99, s))
+            return list(stages.keys()), "scope-grid"
+    guessed = sorted(catalog, key=lambda s: (PHASES.index(catalog[s]["phase"]) if catalog[s]["phase"] in PHASES else 99, s))
+    return guessed, "guessed"
+
+
+def order_warning(source: str, has_catalog: bool) -> str | None:
+    if source != "guessed" or not has_catalog:
+        return None
+    return ("Stage order is a guess (phase, then name): this install has no tools/data/stage-graph.json "
+            "or scope-grid.json. Stage numbers may not match AI-DLC's.")
 
 
 def stage_ids(order: list[str], catalog: dict[str, dict[str, Any]]) -> dict[str, str]:
-    """Assign the familiar `<phase>.<n>` ids (0.1, 1.1, ...) from canonical order."""
+    """The familiar `<phase>.<n>` ids (0.1, 1.1, ...): the stage graph's own number, else counted from order."""
     ids: dict[str, str] = {}
     counters: dict[str, int] = {}
     for slug in order:
-        phase = catalog.get(slug, {}).get("phase", "")
+        meta = catalog.get(slug, {})
+        phase = meta.get("phase", "")
         if phase not in PHASES:
             continue
         counters[phase] = counters.get(phase, 0) + 1
-        ids[slug] = f"{PHASES.index(phase)}.{counters[phase]}"
+        ids[slug] = meta.get("number") or f"{PHASES.index(phase)}.{counters[phase]}"
     return ids
 
 
@@ -312,30 +440,121 @@ def audit_files(record_dir: Path) -> list[Path]:
     return files + ([flat] if flat.is_file() else [])
 
 
-def parse_audit(paths: list[Path]) -> list[dict[str, Any]]:
+def space_audit_files(record: dict[str, Any]) -> list[Path]:
+    """The space-level shard (`<space>/intents/audit/`): the engine writes there when no single intent is
+    selected (before the first intent, or several intents and no cursor). Not tied to this record."""
+    if record.get("kind") != "intent":
+        return []
+    shard_dir = Path(record["path"]).parent / AUDIT_DIR
+    return sorted(shard_dir.glob("*.md")) if shard_dir.is_dir() else []
+
+
+def parse_audit(paths: list[Path], source: str | None = None, known_stages: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     """Each `---`-separated block -> {title, timestamp, event, fields}, oldest first."""
     events: list[dict[str, Any]] = []
     for path in paths:
-        for block in re.split(r"^---\s*$", _read_text(path), flags=re.M):
-            event = _audit_block(block)
-            if event:
-                events.append(event)
-    events.sort(key=lambda e: e["timestamp"] or "")
-    _infer_stages(events)
+        try:
+            blocks = CACHE.get(path, "audit", _parse_audit_file)
+        except OSError:
+            continue
+        # Fresh top-level dicts: stage inference below writes to them, the cached copies stay pristine.
+        events.extend({**e, "source": source} if source else dict(e) for e in blocks)
+    events.sort(key=_event_sort_key)
+    _infer_stages(events, known_stages)
     return events
 
 
-def _infer_stages(events: list[dict[str, Any]]) -> None:
-    """Events with no Stage field (artifacts, subagents, turns) belong to the last stage that started.
-    Run-level events (phase, session, workflow, workspace) are left unattributed."""
-    current: str | None = None
+def _parse_audit_file(path: Path) -> list[dict[str, Any]]:
+    blocks = re.split(r"^---\s*$", _read_text_uncached(path), flags=re.M)
+    return [event for block in blocks if (event := _audit_block(block))]
+
+
+def _event_sort_key(ev: dict[str, Any]) -> tuple[int, float]:
+    """Chronological, by parsed time (offsets and fractional seconds included); undated events sort first."""
+    ts = insights.parse_ts(ev.get("timestamp"))
+    return (1, ts.timestamp()) if ts else (0, 0.0)
+
+
+def _infer_stages(events: list[dict[str, Any]], known: frozenset[str] = frozenset()) -> None:
+    """Give events with no Stage field a stage, most reliable source first:
+
+    1. a `Stage slug` field (sensor events)               -> stageFrom "field"
+    2. the `File` path inside the record (artifact events) -> stageFrom "path" (+ unit)
+    3. the stage the event's `Unit` is in right now       -> stageInferred
+    4. the one stage running at the time                  -> stageInferred
+    When several units are in different stages and nothing above applies, the event is left unattributed
+    with stageAmbiguous, rather than credited to whichever stage started last. Run-level events stay unattributed.
+    """
+    current: str | None = None  # last stage started (stage-level)
+    unit_at: dict[str, str] = {}  # unit -> stage it is working in
     for ev in events:
-        if ev["event"] == "STAGE_STARTED" and ev["stage"]:
+        name, fields = ev["event"], ev.get("fields") or {}
+        if not ev["stage"]:
+            _stage_from_event(ev, known)
+        if name == ev_names.STAGE_STARTED and ev["stage"]:
             current = ev["stage"]
-        elif not ev["stage"] and current and not ev["event"].startswith(RUN_LEVEL_PREFIXES):
-            ev["stage"], ev["stageInferred"] = current, True
-        if ev["event"] in ("WORKFLOW_COMPLETED", "WORKFLOW_PARKED"):
+        _track_unit(unit_at, name, fields.get("Unit"), ev["stage"])
+        if not ev["stage"] and not name.startswith(RUN_LEVEL_PREFIXES):
+            _guess_stage(ev, fields.get("Unit"), unit_at, current)
+        if name in (ev_names.WORKFLOW_COMPLETED, ev_names.WORKFLOW_PARKED):
             current = None
+            unit_at.clear()
+
+
+def _stage_from_event(ev: dict[str, Any], known: frozenset[str]) -> None:
+    fields = ev.get("fields") or {}
+    if slug := (fields.get("Stage slug") or "").strip():
+        ev["stage"], ev["stageFrom"] = STAGE_ALIASES.get(slug, slug), "field"
+        return
+    stage, unit = _stage_from_path(fields.get("File") or "", known)
+    if stage:
+        ev["stage"], ev["stageFrom"] = stage, "path"
+        if unit and not fields.get("Unit"):
+            ev["unit"] = unit
+
+
+def _stage_from_path(path: str, known: frozenset[str]) -> tuple[str | None, str | None]:
+    """`.../intents/<intent>/<phase>/<slug>/x.md` -> (slug, None); `.../construction/<unit>/<slug>/x.md` -> (slug, unit)."""
+    parts = path.replace("\\", "/").split("/")
+    if "intents" not in parts:
+        return None, None
+    rest = parts[parts.index("intents") + 2:]  # skip "intents" and the intent dir name
+    if len(rest) < 3 or rest[0] not in PHASES:
+        return None, None
+    dirs = rest[1:-1]  # directories between the phase and the file name
+    if known:
+        for i, seg in enumerate(dirs):
+            slug = STAGE_ALIASES.get(seg, seg)
+            if slug in known:
+                return slug, (dirs[i - 1] if i and rest[0] == CONSTRUCTION_PHASE else None)
+        return None, None
+    if rest[0] == CONSTRUCTION_PHASE and len(dirs) >= 2:
+        return STAGE_ALIASES.get(dirs[1], dirs[1]), dirs[0]
+    return STAGE_ALIASES.get(dirs[0], dirs[0]), None
+
+
+def _track_unit(unit_at: dict[str, str], name: str, unit: str | None, stage: str | None) -> None:
+    if not unit:
+        return
+    if name in (ev_names.UNIT_STARTED, ev_names.UNIT_RESUMED) and stage:
+        unit_at[unit] = stage
+    elif name in (ev_names.UNIT_COMPLETED, ev_names.UNIT_SKIPPED, ev_names.UNIT_PAUSED):
+        unit_at.pop(unit, None)
+
+
+def _guess_stage(ev: dict[str, Any], unit: str | None, unit_at: dict[str, str], current: str | None) -> None:
+    active = set(unit_at.values())
+    if unit and unit in unit_at:
+        guess = unit_at[unit]
+    elif len(active) == 1:
+        guess = next(iter(active))
+    elif len(active) > 1:
+        ev["stageAmbiguous"] = sorted(active)
+        return
+    else:
+        guess = current
+    if guess:
+        ev["stage"], ev["stageInferred"] = guess, True
 
 
 def _audit_block(block: str) -> dict[str, Any] | None:
@@ -373,15 +592,15 @@ def stage_timeline(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 def _apply_event(entry: dict[str, Any], ev: dict[str, Any]) -> None:
     name, ts = ev["event"], ev["timestamp"]
-    if name == "STAGE_STARTED" and not entry["startedAt"]:
+    if name == ev_names.STAGE_STARTED and not entry["startedAt"]:
         entry["startedAt"] = ts
-    elif name == "STAGE_COMPLETED":
+    elif name == ev_names.STAGE_COMPLETED:
         entry["completedAt"] = ts
-    elif name.endswith("AWAITING_APPROVAL"):
+    elif name in ev_names.GATE_OPENED:
         entry["gates"] += 1
-    elif name == "GATE_APPROVED":
+    elif name == ev_names.GATE_APPROVED:
         entry["approvals"] += 1
-    elif "REVISION" in name or "CHANGES_REQUESTED" in name:
+    elif name == ev_names.GATE_REJECTED:  # one per change request (STAGE_REVISING usually follows it)
         entry["revisions"] += 1
 
 
@@ -389,22 +608,40 @@ def _apply_event(entry: dict[str, Any], ev: dict[str, Any]) -> None:
 
 
 def list_artifacts(record_dir: Path, phase: str, slug: str, state_slug: str) -> list[dict[str, Any]]:
+    """Files under `<phase>/<slug>/`, plus `construction/<unit>/<slug>/` for per-unit Construction stages."""
     out: list[dict[str, Any]] = []
     for candidate in dict.fromkeys((slug, state_slug)):
-        stage_dir = record_dir / phase / candidate
-        if not stage_dir.is_dir():
-            continue
-        for path in sorted(stage_dir.rglob("*")):
-            if path.is_file() and path.suffix.lower() in ARTIFACT_SUFFIXES:
-                out.append({"path": path.relative_to(record_dir).as_posix(), "name": path.name, "size": path.stat().st_size})
+        dirs = [(record_dir / phase / candidate, None)]
+        if phase == CONSTRUCTION_PHASE and (record_dir / phase).is_dir():
+            dirs += [(unit / candidate, unit.name) for unit in sorted((record_dir / phase).iterdir())
+                     if unit.is_dir() and not unit.name.startswith(".") and unit.name != candidate]
+        for stage_dir, unit in dirs:
+            if stage_dir.is_dir():
+                out.extend(_artifact_rows(record_dir, stage_dir, unit))
     return out
 
 
+def _artifact_rows(record_dir: Path, stage_dir: Path, unit: str | None) -> list[dict[str, Any]]:
+    rows = []
+    for path in sorted(stage_dir.rglob("*")):
+        if any(p.startswith(".") for p in path.relative_to(stage_dir).parts):
+            continue  # hidden files can't be opened (see _safe_segment), so don't list them
+        if path.is_file() and path.suffix.lower() in ARTIFACT_SUFFIXES:
+            row = {"path": path.relative_to(record_dir).as_posix(), "name": path.name, "size": path.stat().st_size}
+            if unit:
+                row["unit"] = unit
+            rows.append(row)
+    return rows
+
+
 def read_artifact(root: Path, record_id: str | None, rel_path: str) -> dict[str, Any]:
-    """Return one artifact's text. Refuses anything that resolves outside the record."""
+    """Return one artifact's text. Refuses anything that resolves outside the record.
+
+    Segments may contain spaces and non-ASCII letters; separators, control characters, `.`/`..`, and
+    hidden (dot) segments are refused, then the resolved path (symlinks followed) must stay in the record."""
     record_dir = Path(resolve_record(root, record_id)["path"]).resolve()
     parts = rel_path.split("/")
-    if not rel_path or any(not _SAFE_SEGMENT.match(p) or p in (".", "..") for p in parts):
+    if not rel_path or any(not _safe_segment(p) for p in parts):
         raise ArtifactRefused("Invalid artifact path.")
     target = (record_dir / Path(*parts)).resolve()
     if not target.is_relative_to(record_dir) or not target.is_file():
@@ -413,6 +650,11 @@ def read_artifact(root: Path, record_id: str | None, rel_path: str) -> dict[str,
         raise ArtifactRefused("File type not viewable.")
     data = target.read_bytes()[:MAX_ARTIFACT_BYTES]
     return {"path": rel_path, "truncated": target.stat().st_size > MAX_ARTIFACT_BYTES, "text": data.decode("utf-8", "replace")}
+
+
+def _safe_segment(part: str) -> bool:
+    return (0 < len(part) <= MAX_PATH_SEGMENT and part == part.strip() and not part.startswith(".")
+            and not _UNSAFE_SEGMENT.search(part))
 
 
 # --------------------------------------------------------------------------- agents
@@ -483,12 +725,12 @@ def _apply_agent_event(agents, roster, ev: dict[str, Any]) -> None:
     agent["events"] += 1
     agent["firstSeen"] = agent["firstSeen"] or ts
     agent["lastSeen"] = ts
-    if kind == "STAGE_STARTED" and ev.get("stage") and ev["stage"] not in agent["ran"]:
+    if kind == ev_names.STAGE_STARTED and ev.get("stage") and ev["stage"] not in agent["ran"]:
         agent["ran"].append(ev["stage"])
-    elif kind in ("SUBAGENT_DISPATCHED", "REVIEW_REQUESTED"):
+    elif kind in (ev_names.SUBAGENT_DISPATCHED, ev_names.REVIEW_REQUESTED):
         agent["dispatches"] += 1
         agent["lastDispatch"] = ts
-    elif kind in ("SUBAGENT_COMPLETED", "REVIEW_COMPLETED"):
+    elif kind in (ev_names.SUBAGENT_COMPLETED, ev_names.REVIEW_COMPLETED):
         agent["completions"] += 1
         agent["lastCompletion"] = ts
 
@@ -540,13 +782,23 @@ def _json_dir(path: Path, sort_key: str) -> list[dict[str, Any]]:
 # --------------------------------------------------------------------------- top-level model
 
 
-def build_status(root: Path, record_id: str | None = None, stall_minutes: int = insights.DEFAULT_STALL_MINUTES) -> dict[str, Any]:
-    harness = find_harness(root)
+def build_status(root: Path, record_id: str | None = None, stall_minutes: int = insights.DEFAULT_STALL_MINUTES,
+                 harness_name: str | None = None) -> dict[str, Any]:
+    harness, warnings = select_harness(root, harness_name)
+    graph = load_stage_graph(harness)
     grid = load_scope_grid(harness)
-    catalog = load_stage_catalog(harness)
+    catalog = load_stage_catalog(harness, graph)
+    order, order_source = canonical_order(grid, catalog, graph)
+    version = aidlc_version(harness)
+    warnings += [w for w in (version_warning(version), order_warning(order_source, bool(catalog))) if w]
     base = {
+        "pulseVersion": PULSE_VERSION,
         "project": str(root),
         "harness": harness.name if harness else None,
+        "aidlcVersion": version,
+        "testedVersion": ev_names.TESTED_AIDLC_RELEASE,
+        "stageOrderSource": order_source,
+        "warnings": warnings,
         "records": discover_records(root),
         "sessions": read_sessions(root),
         "serverNow": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -554,10 +806,10 @@ def build_status(root: Path, record_id: str | None = None, stall_minutes: int = 
     if not base["records"]:
         message = "No aidlc-state.md found in this project yet."
         agents = agent_activity(load_roster(harness), [], [], None)
-        return {**base, "record": None, "message": message, "phases": _empty_phases(grid, catalog), "agents": agents}
+        return {**base, "record": None, "message": message, "phases": _empty_phases(order, catalog), "agents": agents}
     record = resolve_record(root, record_id)  # unknown id -> RecordNotFound -> 404
-    status = _record_status(record, grid, catalog, load_roster(harness))
-    derived = _insights(status, base["sessions"], stall_minutes)  # pops the internal event list first
+    status = _record_status(record, order, catalog, load_roster(harness))
+    derived = _insights(status, base["sessions"], stall_minutes)  # pops the internal event lists first
     return {**base, **status, **derived}
 
 
@@ -565,27 +817,36 @@ def _insights(status: dict[str, Any], sessions: dict[str, Any], stall_minutes: i
     now = datetime.now(timezone.utc)
     stages = [s for p in status["phases"] for s in p["stages"]]
     events = status.pop("_allEvents")
+    space_events = status.pop("_spaceEvents")
+    # Space-level events show the engine is active (stall detection) but aren't credited to this record's stages.
+    activity = sorted(events + space_events, key=_event_sort_key) if space_events else events
     return {
         "attention": insights.attention(stages, events, sessions, now),
-        "health": insights.health(stages, events, now, stall_minutes),
+        "health": insights.health(stages, activity, now, stall_minutes),
         "timing": insights.timing(stages, events, now, stall_minutes),
     }
 
 
-def build_audit(root: Path, record_id: str | None) -> dict[str, Any]:
-    """The full audit trail of one record, newest first (capped)."""
+def build_audit(root: Path, record_id: str | None, harness_name: str | None = None) -> dict[str, Any]:
+    """The full audit trail of one record plus its space-level shard, newest first (capped)."""
     record = resolve_record(root, record_id)
-    events = parse_audit(audit_files(Path(record["path"])))
-    return {"record": record["id"], "total": len(events), "events": events[-MAX_AUDIT_EVENTS:][::-1]}
+    harness = select_harness(root, harness_name)[0]
+    known = _known_stages(load_stage_catalog(harness), Path(record["path"]))
+    events = parse_audit(audit_files(Path(record["path"])), known_stages=known)
+    space = parse_audit(space_audit_files(record), source="space", known_stages=known)
+    merged = sorted(events + space, key=_event_sort_key) if space else events
+    return {"record": record["id"], "total": len(merged), "spaceEvents": len(space),
+            "events": merged[-MAX_AUDIT_EVENTS:][::-1]}
 
 
-def _record_status(record: dict[str, Any], grid: dict[str, dict[str, str]], catalog: dict[str, dict[str, Any]],
+def _record_status(record: dict[str, Any], order: list[str], catalog: dict[str, dict[str, Any]],
                    roster: dict[str, dict[str, Any]]) -> dict[str, Any]:
     record_dir = Path(record["path"])
     state = parse_state(_read_text(record_dir / STATE_FILE))
-    events = parse_audit(audit_files(record_dir))
+    known = _known_stages(catalog, record_dir, state)
+    events = parse_audit(audit_files(record_dir), known_stages=known)
+    space_events = parse_audit(space_audit_files(record), source="space", known_stages=known)
     timeline = stage_timeline(events)
-    order = canonical_order(grid, catalog)
     ids = stage_ids(order, catalog)
     rows = _with_missing_stages(state["stages"], order, catalog)
     stages = [_merge_stage(row, catalog, ids, timeline, record_dir) for row in rows]
@@ -597,10 +858,19 @@ def _record_status(record: dict[str, Any], grid: dict[str, dict[str, str]], cata
         "summary": _summary(stages, state["sections"]),
         "agents": agent_activity(roster, stages, events, active_agent),
         "units": units.build_units(record_dir, events, stages, state["sections"]),
+        "decisions": decisions.build_decisions(record_dir, stages, _read_text),
         "events": events[-RECENT_EVENT_LIMIT:][::-1],
-        "eventCount": len(events),
+        "eventCount": len(events) + len(space_events),
+        "spaceEventCount": len(space_events),
         "_allEvents": events,
+        "_spaceEvents": space_events,
     }
+
+
+def _known_stages(catalog: dict[str, dict[str, Any]], record_dir: Path, state: dict[str, Any] | None = None) -> frozenset[str]:
+    """Stage slugs from the catalog and the state file: lets artifact paths name their stage exactly."""
+    state = state or parse_state(_read_text(record_dir / STATE_FILE))
+    return frozenset(catalog) | {s["slug"] for s in state["stages"]}
 
 
 def _with_missing_stages(rows: list[dict[str, str]], order: list[str], catalog: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
@@ -632,8 +902,7 @@ def _group_by_phase(stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{"name": name, "stages": rows} for name, rows in groups.items() if rows]
 
 
-def _empty_phases(grid, catalog) -> list[dict[str, Any]]:
-    order = canonical_order(grid, catalog)
+def _empty_phases(order: list[str], catalog: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     ids = stage_ids(order, catalog)
     rows = [{"slug": s, "stateSlug": s, "phase": catalog.get(s, {}).get("phase", ""), "mark": " ", "status": "pending",
              "decision": "EXECUTE", "id": ids.get(s), "meta": catalog.get(s, {}), "timeline": None, "artifacts": []} for s in order]

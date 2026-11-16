@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-DLC Pulse</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header>
+  <h1>AI-DLC <span>Pulse</span></h1>
+  <span class="ver" id="pulseVer"></span>
+  <span class="proj" id="proj"></span>
+  <div class="right">
+    <label>Record <select id="recordSel"></select></label>
+    <span><span class="dot" id="liveDot"></span><span id="updated">connecting…</span></span>
+    <button id="alertBtn" type="button" title="Browser notifications when a gate opens, a stage stalls or an error is logged">🔔 Enable alerts</button>
+    <button id="pauseBtn" type="button">Pause</button>
+    <a class="hdr-link" href="/cheatsheet.html" target="_blank" rel="noopener noreferrer" title="Every /aidlc and aidlc command on one page">Commands cheatsheet ↗</a>
+  </div>
+</header>
+<nav class="tabs" id="tabs">
+  <button type="button" data-tab="overview">Overview</button>
+  <button type="button" data-tab="workflow">Workflow</button>
+  <button type="button" data-tab="timeline">Timeline</button>
+  <button type="button" data-tab="agents">Agents</button>
+  <button type="button" data-tab="decisions">Decisions</button>
+  <button type="button" data-tab="audit">Audit trail</button>
+</nav>
+<main id="app"><div class="card empty">Loading…</div></main>
+
+<script src="/app.js"></script>
+</body>
+</html>

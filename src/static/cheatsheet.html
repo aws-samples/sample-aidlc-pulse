@@ -4,56 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI-DLC Commands Cheatsheet · AI-DLC Pulse</title>
-<style>
-:root[data-theme="light"]{--bg:#f4f5f7;--surface:#fff;--border:#dfe3e8;--text:#16191f;--muted:#5f6b7a;--heading:#232f3e;--accent:#ff9900;--accent-2:#0972d3;--code-bg:#f2f3f5;--code-text:#16191f;--chip:#eef4fc;--hl:#fff3d6}
-:root[data-theme="dark"]{--bg:#0f141a;--surface:#161d26;--border:#2a3441;--text:#e6e9ee;--muted:#9aa5b4;--heading:#fff;--accent:#ff9900;--accent-2:#539fe5;--code-bg:#0b1016;--code-text:#e6e9ee;--chip:#1c2a3a;--hl:#3a2e10}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 "Amazon Ember",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
-header{position:sticky;top:0;z-index:10;background:#232f3e;color:#fff;border-bottom:3px solid var(--accent)}
-.bar{max-width:1680px;margin:0 auto;display:flex;align-items:center;gap:18px;padding:12px 24px;flex-wrap:wrap}
-.bar h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.2px}
-.bar h1 span{color:var(--accent)}
-.bar .meta{font-size:12px;color:#c6ccd5}
-.bar .spacer{flex:1}
-#q{width:min(340px,70vw);padding:8px 12px;border-radius:6px;border:1px solid #4a5869;background:#18212c;color:#fff;font:inherit}
-#q::placeholder{color:#93a0b0}
-.btn{background:transparent;border:1px solid #4a5869;color:#fff;border-radius:6px;padding:7px 12px;font:inherit;cursor:pointer}
-a.btn{text-decoration:none;display:inline-block}
-.btn:hover{border-color:var(--accent)}
-main{max-width:1680px;margin:0 auto;padding:20px 24px 48px}
-.intro{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:18px}
-.tip{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--accent-2);border-radius:8px;padding:10px 14px;font-size:13px}
-.tip b{color:var(--heading)}
-.grid{columns:3 460px;column-gap:16px}
-.card{break-inside:avoid;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin:0 0 16px;overflow:hidden}
-.card h2{margin:0;padding:10px 14px;font-size:15px;color:var(--heading);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
-.card h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#232f3e;font-size:12px;font-weight:700}
-.card h2 .where{margin-left:auto;font-size:11px;font-weight:400;color:var(--muted);border:1px solid var(--border);border-radius:10px;padding:1px 8px}
-.card p.note{margin:8px 14px;color:var(--muted);font-size:12.5px}
-table{width:100%;border-collapse:collapse}
-td{padding:6px 14px;border-top:1px solid var(--border);vertical-align:top}
-tr:first-child td{border-top:0}
-td:first-child{width:48%}
-td.desc{color:var(--text);font-size:13px}
-code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;background:var(--code-bg);color:var(--code-text);padding:2px 6px;border-radius:4px;word-break:break-word;cursor:copy;display:inline-block;line-height:1.5}
-code:hover{outline:1px solid var(--accent)}
-code.copied{outline:2px solid #1d8102}
-.inline code{cursor:default;display:inline;padding:1px 4px}
-.inline code:hover{outline:0}
-tr.hide{display:none}
-.card.hide{display:none}
-mark{background:var(--hl);color:inherit;padding:0}
-.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px}
-.chips code{background:var(--chip)}
-.ref td:first-child{width:auto;white-space:nowrap}
-.ref th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:6px 14px;border-bottom:1px solid var(--border)}
-.ph{font-weight:700;font-size:12px;padding:6px 14px 2px;color:var(--accent-2)}
-footer{max-width:1680px;margin:0 auto;padding:0 24px 30px;color:var(--muted);font-size:12px}
-footer a{color:var(--accent-2)}
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#232f3e;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;border:1px solid var(--accent)}
-#toast.on{opacity:1}
-@media print{header{position:static}#q,.btn{display:none}.grid{columns:2}body{font-size:11px}code{font-size:10.5px}}
-</style>
+<link rel="stylesheet" href="cheatsheet.css">
 </head>
 <body>
 <header>
@@ -92,7 +43,7 @@ footer a{color:var(--accent-2)}
     </section>
 
     <section class="card">
-      <h2><span class="n">2</span>Native <code style="cursor:default">aidlc</code> commands<span class="where">terminal</span></h2>
+      <h2><span class="n">2</span>Native <code class="plain">aidlc</code> commands<span class="where">terminal</span></h2>
       <table>
         <tr><td><code>aidlc --help</code></td><td class="desc">The six public commands: config, doctor, version, update, use, uninstall.</td></tr>
         <tr><td><code>aidlc &lt;command&gt; --help</code></td><td class="desc">Every option for one command.</td></tr>
@@ -347,7 +298,7 @@ footer a{color:var(--accent-2)}
 
   </div>
 </main>
-<footer>Source: <a href="https://github.com/awslabs/aidlc-workflows">github.com/awslabs/aidlc-workflows</a>, docs/guide/12-cli-commands.md, 17-skills.md, 18-install-and-lifecycle.md, 05-scopes-and-depth.md, 04-phases-and-stages.md (release 2.11.3). Full option lists: <code style="cursor:default">aidlc &lt;command&gt; --help</code> and <code style="cursor:default">/aidlc --help</code>.</footer>
+<footer>Source: <a href="https://github.com/awslabs/aidlc-workflows">github.com/awslabs/aidlc-workflows</a>, docs/guide/12-cli-commands.md, 17-skills.md, 18-install-and-lifecycle.md, 05-scopes-and-depth.md, 04-phases-and-stages.md (release 2.11.3). Full option lists: <code class="plain">aidlc &lt;command&gt; --help</code> and <code class="plain">/aidlc --help</code>.</footer>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script src="/cheatsheet.js"></script>

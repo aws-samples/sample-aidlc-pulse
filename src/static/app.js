@@ -10,12 +10,14 @@ const AGENT_STATE_LABEL = {
   "working":"Working now","awaiting-approval":"Waiting for approval","contributed":"Has worked",
   "planned":"Upcoming","no-record":"Assigned, no activity recorded","idle":"Not in this run"
 };
-const TABS = ["overview", "workflow", "timeline", "agents", "audit"];
+const TABS = ["overview", "workflow", "timeline", "agents", "decisions", "audit"];
+const TAB_LABEL = { overview: "Overview", workflow: "Workflow", timeline: "Timeline", agents: "Agents", decisions: "Decisions", audit: "Audit trail" };
 const AUDIT_PAGE = 200;
 const ui = { record: null, stage: null, paused: false, data: null, artifact: null, filter: "", tab: "overview",
   audit: null, af: { q: "", event: "", stage: "", agent: "" }, auditShown: AUDIT_PAGE, openEvents: new Set(),
+  df: { stage: "", openOnly: false },
   wf: { showSkipped: false, replay: null }, rawView: false, seen: null };
-/* Deep links: /?record=<space>/<intent>&stage=<slug>#workflow|#agents|#audit */
+/* Deep links: /?record=<space>/<intent>&stage=<slug>#workflow|#agents|#decisions|#audit */
 { const p = new URLSearchParams(location.search); ui.record = p.get("record"); ui.stage = p.get("stage");
   const t = location.hash.slice(1); if (TABS.includes(t)) ui.tab = t; }
 
@@ -26,6 +28,8 @@ function h(tag, attrs, ...kids) {
     if (v == null || v === false) continue;
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "class") el.className = v;
+    // CSSOM, not a style attribute: the CSP's style-src 'self' blocks style="" but allows el.style.
+    else if (k === "style") el.style.cssText = String(v);
     else el.setAttribute(k, v === true ? "" : String(v));
   }
   for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
@@ -89,6 +93,10 @@ function showAuditFor(filters) {
   ui.auditShown = AUDIT_PAGE;
   setTab("audit");
 }
+function showDecisionsFor(stage) { ui.df = { stage: stage || "", openOnly: false }; setTab("decisions"); }
+function stageQuestions(d, slug) {
+  return ((d.decisions || {}).files || []).filter((f) => f.stage === slug).reduce((n, f) => n + f.questions.length, 0);
+}
 function setLive(ok, text) {
   document.getElementById("liveDot").className = "dot" + (ok ? "" : " off");
   document.getElementById("updated").textContent = text;
@@ -97,22 +105,33 @@ function setLive(ok, text) {
 function render() {
   const d = ui.data;
   if (!d) return;
-  document.getElementById("proj").textContent = d.project + (d.harness ? "  ·  " + d.harness : "");
+  document.getElementById("pulseVer").textContent = d.pulseVersion ? "v" + d.pulseVersion : "";
+  document.getElementById("proj").textContent = d.project + (d.harness ? "  ·  " + d.harness : "")
+    + (d.aidlcVersion ? "  ·  AI-DLC " + d.aidlcVersion : "");
   renderRecordPicker(d);
   renderTabs(d);
-  const views = { overview: renderOverview, workflow: renderWorkflowTab, timeline: renderTimelineTab, agents: renderAgentsTab, audit: renderAuditTab };
-  document.getElementById("app").replaceChildren(...[].concat(views[ui.tab](d)).flat(), artifactModal());
+  const views = new Map([["overview", renderOverview], ["workflow", renderWorkflowTab], ["timeline", renderTimelineTab],
+    ["agents", renderAgentsTab], ["decisions", renderDecisionsTab], ["audit", renderAuditTab]]);
+  const view = views.get(ui.tab) || renderOverview;  // fixed allowlist; unknown tabs fall back to Overview
+  document.getElementById("app").replaceChildren(warningsBanner(d), ...[].concat(view(d)).flat(), artifactModal());
   updateTitle(d);
+}
+
+/* Setup problems the reader noticed: several harnesses, untested AI-DLC release, guessed stage order. */
+function warningsBanner(d) {
+  const w = d.warnings || [];
+  return w.length ? h("div", { class: "warns" }, w.map((t) => h("div", { class: "banner", role: "status" }, "⚠ " + t))) : "";
 }
 
 function renderTabs(d) {
   const working = (d.agents || []).filter((a) => a.state === "working").length;
   document.querySelectorAll("#tabs button").forEach((b) => {
     b.className = b.dataset.tab === ui.tab ? "on" : "";
-    const label = { overview: "Overview", workflow: "Workflow", timeline: "Timeline", agents: "Agents", audit: "Audit trail" }[b.dataset.tab];
+    const label = TAB_LABEL[b.dataset.tab];
     const n = b.dataset.tab === "agents" ? working : b.dataset.tab === "audit" ? d.eventCount
-      : b.dataset.tab === "overview" ? needsCount(d) : 0;
-    b.replaceChildren(label, n ? h("span", { class: "n" + (b.dataset.tab === "overview" ? " n-alert" : "") }, String(n)) : "");
+      : b.dataset.tab === "overview" ? needsCount(d) : b.dataset.tab === "decisions" ? (d.decisions ? d.decisions.openCount : 0) : 0;
+    const alert = b.dataset.tab === "overview" || b.dataset.tab === "decisions";
+    b.replaceChildren(label, n ? h("span", { class: "n" + (alert ? " n-alert" : "") }, String(n)) : "");
   });
 }
 
@@ -199,9 +218,12 @@ function renderDetail(d) {
       ...row("Gates / approvals / revisions", t.gates != null ? `${t.gates} / ${t.approvals} / ${t.revisions}` : null),
       ...row("Agents seen in audit", (t.agents || []).join(", "))),
     t.startedAt ? h("button", { type: "button", class: "link", style: "margin-top:8px", onclick: () => showAuditFor({ stage: s.slug }) }, "View this stage's audit events →") : "",
+    stageQuestions(d, s.slug) ? h("button", { type: "button", class: "link", style: "margin-top:8px;margin-left:14px", onclick: () => showDecisionsFor(s.slug) },
+      "View its " + stageQuestions(d, s.slug) + " decision(s) →") : "",
     h("h2", { style: "margin-top:14px" }, "Artifacts (" + s.artifacts.length + ")"),
     s.artifacts.length ? h("ul", { class: "arts" }, s.artifacts.map((a) =>
-      h("li", {}, h("button", { type: "button", onclick: () => openArtifact(a.path) }, a.path), h("span", { class: "muted" }, "  " + Math.ceil(a.size / 1024) + " KB"))))
+      h("li", {}, a.unit ? h("span", { class: "chip", style: "margin-right:6px" }, a.unit) : "",
+        h("button", { type: "button", onclick: () => openArtifact(a.path) }, a.path), h("span", { class: "muted" }, "  " + Math.ceil(a.size / 1024) + " KB"))))
       : h("p", { class: "empty" }, "No artifacts on disk for this stage.")
   );
   return card;
@@ -333,14 +355,23 @@ function auditToolbar(all) {
     h("button", { type: "button", onclick: exportAudit }, "Download JSON"));
 }
 
+function auditStageCell(e) {
+  if (e.stageAmbiguous) return h("span", { class: "inf", title: "No Stage field, and several units were in different stages: " + e.stageAmbiguous.join(", ") }, "one of " + e.stageAmbiguous.length + " running");
+  if (!e.stage) return "";
+  const title = e.stageInferred ? "No Stage field; the stage running at the time"
+    : e.stageFrom === "path" ? "From the file path" : e.stageFrom === "field" ? "From the Stage slug field" : "";
+  return h("span", { class: e.stageInferred ? "inf" : "", title }, e.stage);
+}
+
 function auditRow(e) {
   const key = e.timestamp + "|" + e.event + "|" + (e.stage || "") + "|" + JSON.stringify(e.fields).length;
   const open = ui.openEvents.has(key);
   const toggle = () => { open ? ui.openEvents.delete(key) : ui.openEvents.add(key); render(); };
   const tr = h("tr", { class: "ev-row" + (open ? " ev-open" : ""), onclick: toggle },
     h("td", { class: "muted", style: "white-space:nowrap" }, fmtTime(e.timestamp)),
-    h("td", {}, h("span", { class: "ev" }, e.event)),
-    h("td", {}, e.stage ? h("span", { class: e.stageInferred ? "inf" : "", title: e.stageInferred ? "No Stage field; the stage running at the time" : "" }, e.stage) : ""),
+    h("td", {}, h("span", { class: "ev" }, e.event), e.source === "space"
+      ? h("span", { class: "chip", style: "margin-left:6px", title: "From the space-level audit shard: written when no single intent was selected" }, "space") : ""),
+    h("td", {}, auditStageCell(e)),
     h("td", { class: "mono" }, e.agent || ""),
     h("td", {}, eventDetail(e) || h("span", { class: "muted" }, e.title || "")));
   if (!open) return [tr];
@@ -356,12 +387,61 @@ function exportAudit() {
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+/* ------------------------------------------------------------------ Decisions tab */
+/* Read-only decision record from the stages' *-questions.md files. Answers are still given in the Kiro chat. */
+function renderDecisionsTab(d) {
+  if (!d.record) return h("div", { class: "banner" }, "No run yet, so there are no decisions.");
+  const dc = d.decisions || { files: [], questionCount: 0, openCount: 0 }, f = ui.df;
+  if (!dc.files.length) return h("div", { class: "card empty" }, "No stage has asked questions yet (no *-questions.md files in this record).");
+  const stages = [...new Set(dc.files.map((x) => x.stage))];
+  const ids = Object.fromEntries(allStages(d).map((s) => [s.slug, s.id]));
+  const files = dc.files.filter((x) => (!f.stage || x.stage === f.stage) && (!f.openOnly || x.open));
+  const toolbar = h("div", { class: "toolbar" },
+    h("select", { "aria-label": "Stage", onchange: (e) => { ui.df.stage = e.target.value; render(); } },
+      h("option", { value: "" }, "All stages (" + stages.length + ")"),
+      stages.map((s) => h("option", { value: s, selected: f.stage === s }, (ids[s] ? ids[s] + " " : "") + s))),
+    h("label", {}, h("input", { type: "checkbox", checked: f.openOnly, onchange: (e) => { ui.df.openOnly = e.target.checked; render(); } }),
+      " Unanswered only"));
+  return h("section", { class: "card" },
+    h("h2", {}, "Decision record — " + dc.questionCount + " questions, " + (dc.openCount ? dc.openCount + " waiting for an answer" : "all answered")),
+    h("p", { class: "muted", style: "margin:-6px 0 10px;font-size:12px" },
+      "The questions each stage asked, the options offered and the answer recorded. To answer, reply in your Kiro chat (for example \"Q1: A\")."),
+    toolbar,
+    files.length ? files.map((x) => decisionFile(x, ids)) : h("p", { class: "empty" }, "No questions match these filters."));
+}
+
+function decisionFile(file, ids) {
+  return h("div", { class: "dq-file" },
+    h("div", { class: "dq-head" },
+      h("strong", {}, (ids[file.stage] ? ids[file.stage] + " " : "") + file.stage),
+      file.unit ? h("span", { class: "chip" }, file.unit) : "",
+      file.stageStatus ? pill(file.stageStatus) : "",
+      h("button", { type: "button", class: "link", onclick: () => openArtifact(file.path) }, "open file")),
+    file.questions.map(decisionQuestion));
+}
+
+function decisionQuestion(q) {
+  const label = [q.id, q.role ? "[" + q.role + "]" : ""].filter(Boolean).join(" ");
+  return h("div", { class: "dq" + (q.answered ? "" : " open") },
+    h("div", { class: "dq-q" }, label ? h("span", { class: "mono muted" }, label + " ") : "", q.text || "(untitled question)"),
+    q.context ? h("div", { class: "dq-ctx muted" }, q.context) : "",
+    q.options.length ? h("ul", { class: "dq-opts" }, q.options.map((o) =>
+      h("li", { class: "dq-opt" + (q.chosen === o.key ? " chosen" : "") },
+        h("span", { class: "k" }, (q.chosen === o.key ? "✓ " : "") + o.key), h("span", {}, o.text),
+        o.recommended ? h("span", { class: "rec" }, "Recommended") : ""))) : "",
+    h("div", { class: "dq-ans" }, q.answered
+      ? [h("strong", {}, "Answer: "), q.answer, q.mode ? h("span", { class: "muted" }, " · via " + q.mode) : ""]
+      : h("strong", {}, "Waiting for an answer")));
+}
+
 /* ------------------------------------------------------------------ Workflow tab (animated) */
 const SVGNS = "http://www.w3.org/2000/svg";
 function s(tag, attrs, ...kids) {
   const el = document.createElementNS(SVGNS, tag);
   for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false) {
-    if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else el.setAttribute(k, String(v));
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "style") el.style.cssText = String(v);  // CSSOM, allowed by style-src 'self'
+    else el.setAttribute(k, String(v));
   }
   for (const kid of kids.flat()) if (kid != null && kid !== false && kid !== "") el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
   return el;
@@ -668,12 +748,42 @@ function unitNode(p, W, H, kicker, name, sub, status, accent) {
 /* ------------------------------------------------------------------ Markdown -> DOM (safe: never uses innerHTML) */
 const MD_SAFE_LINK = /^(https?:\/\/|#|\.{0,2}\/?[\w.\-\/]+(#[\w\-]*)?$)/i;
 
+/* Drop HTML comments. One left-to-right pass that re-checks the output after every character, so a comment
+   can't be rebuilt from the pieces left around a removed one (a comment nested inside a broken opener).
+   An unclosed comment runs to the end of the text, as in HTML and CommonMark. Linear time, no regex. */
+function stripHtmlComments(text) {
+  const out = [];
+  let inComment = false, dashes = 0;
+  for (const ch of text) {
+    if (inComment) {
+      if (ch === ">" && dashes >= 2) inComment = false;
+      dashes = ch === "-" ? dashes + 1 : 0;
+      continue;
+    }
+    out.push(ch);
+    const k = out.length;
+    if (k >= 4 && out[k - 1] === "-" && out[k - 2] === "-" && out[k - 3] === "!" && out[k - 4] === "<") {
+      out.length = k - 4;
+      inComment = true;
+      dashes = 0;
+    }
+  }
+  return out.join("");
+}
+
 function renderMarkdown(src, basePath) {
-  const lines = src.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?-->/g, "").split("\n");
+  const lines = stripHtmlComments(src.replace(/\r\n?/g, "\n")).split("\n");
   const root = h("div", { class: "md" });
   let i = 0;
   while (i < lines.length) i = mdBlock(lines, i, root, basePath);
   return root;
+}
+
+/* A markdown thematic break: 3+ of the same -, * or _ with only whitespace around them ("---", "* * *").
+   Done without a backreferencing regex so its cost is plainly linear in the line length. */
+function isHorizontalRule(line) {
+  const marks = line.replace(/\s/g, "");
+  return marks.length >= 3 && "-*_".includes(marks[0]) && [...marks].every((c) => c === marks[0]);
 }
 
 function mdBlock(lines, i, out, base) {
@@ -682,7 +792,7 @@ function mdBlock(lines, i, out, base) {
   let m;
   if ((m = line.match(/^\s*(```+|~~~+)\s*([\w+-]*)/))) return mdFence(lines, i, out, m[1]);
   if ((m = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))) { out.append(h("h" + m[1].length, {}, mdInline(m[2], base))); return i + 1; }
-  if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.append(h("hr")); return i + 1; }
+  if (isHorizontalRule(line)) { out.append(h("hr")); return i + 1; }
   if (/^\s*>/.test(line)) return mdQuote(lines, i, out, base);
   if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) return mdTable(lines, i, out, base);
   if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) return mdList(lines, i, out, base);
@@ -826,7 +936,10 @@ function needsYou(d) {
       h("div", { class: "need-t" }, "⏸ Approval needed: ", h("strong", {}, (g.id ? g.id + " " : "") + g.slug)),
       h("div", { class: "muted" }, "Gate open for " + fmtDur(sinceSec(g.since)) + (g.since ? " (since " + fmtTime(g.since) + ")" : "")
         + ". Answer in your Kiro chat to approve or request changes."),
-      g.questionFiles.length ? h("div", { class: "need-actions" }, g.questionFiles.map((p) =>
+      g.questionFiles.length || stageQuestions(d, g.slug) ? h("div", { class: "need-actions" },
+        stageQuestions(d, g.slug) ? h("button", { type: "button", onclick: () => showDecisionsFor(g.slug) },
+          "See the " + stageQuestions(d, g.slug) + " question(s) and options") : "",
+        g.questionFiles.map((p) =>
         h("button", { type: "button", onclick: () => openArtifact(p) }, "Open " + p.split("/").pop()))) : "")),
     ...a.questions.map((q) => h("div", { class: "need need-q" },
       h("div", { class: "need-t" }, "❓ AI-DLC is asking: ", h("strong", {}, q.text)),

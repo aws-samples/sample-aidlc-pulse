@@ -2,6 +2,23 @@
 
 All notable changes to AI-DLC Pulse. Releases are published to [aws-samples/sample-aidlc-pulse](https://github.com/aws-samples/sample-aidlc-pulse). The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The version is set in `version.py` and shown in the dashboard header.
 
+## [1.1.2] - 2026-11-19
+
+Tested against AI-DLC 2.11 (release 2.11.4). Dashboard navigation improvements, no change to what Pulse reads. Changes since 1.1.1.
+
+### Added
+
+- **Open tabs in a new browser tab:** the top tabs are now real links, so right-click "Open link in new tab", middle-click and Ctrl/Cmd-click work. The new tab opens on the same run and view. A plain left click still switches tabs in the page.
+- **"Needs you" chip in the header:** a pink chip shows how many items need attention (open gates, stalls, errors, paused units) from any tab. Clicking it opens Overview. It uses the same count as the Overview badge and the browser title.
+- **Keyboard shortcuts:** `1`-`6` switch tabs and `/` focuses the filter box on the current tab. They are off while typing in a field, with Ctrl/Cmd/Alt held, and while the artifact viewer is open.
+- **Per-tab scroll position:** each tab remembers its scroll position when you switch away and back.
+- **Shareable URLs:** the address now carries the selected stage, the audit filters (`aq`, `ae`, `as`, `aa`) and the decisions filters (`ds`, `do=1`), so a reload, a new tab or a copied link restores the same view.
+
+### Changed
+
+- **Sticky header:** the header and tab bar stay at the top of the window while you scroll. The artifact viewer still covers them.
+- **Browser Back button:** switching tabs now adds a history entry, so Back returns to the previous tab instead of leaving the dashboard.
+
 ## [1.1.1] - 2026-11-16
 
 Tested against AI-DLC 2.11 (release 2.11.4). Changes since 1.1.0.
@@ -11,7 +28,7 @@ Tested against AI-DLC 2.11 (release 2.11.4). Changes since 1.1.0.
 - **Tested against AI-DLC 2.11.4** (was 2.11.3). The upstream event-name check passes against v2.11.4, which only adds event names Pulse doesn't use. CI now pins `v2.11.4`.
 - **Commands cheatsheet updated for AI-DLC 2.11.4:** the Kiro harness names (`--harness kiro` is now Kiro IDE and Kiro CLI on its v3 engine, `kiro-v2` is Kiro CLI on its v2 engine, and `kiro-ide` still works), `/aidlc unit share`, `unit publish --commit/--include`, plugin commands (`/aidlc <plugin command>`), `knowledge onboard` with several paths, `/aidlc-issue-report`, and the `infra` scope's stage count (15).
 
-## [1.1.0] - 2026-11-11
+## [1.1.0] - 2026-11-16
 
 Tested against AI-DLC 2.11 (release 2.11.3). Changes since the 1.0.0 sample release.
 

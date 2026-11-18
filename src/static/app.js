@@ -17,9 +17,39 @@ const ui = { record: null, stage: null, paused: false, data: null, artifact: nul
   audit: null, af: { q: "", event: "", stage: "", agent: "" }, auditShown: AUDIT_PAGE, openEvents: new Set(),
   df: { stage: "", openOnly: false },
   wf: { showSkipped: false, replay: null }, rawView: false, seen: null };
-/* Deep links: /?record=<space>/<intent>&stage=<slug>#workflow|#agents|#decisions|#audit */
-{ const p = new URLSearchParams(location.search); ui.record = p.get("record"); ui.stage = p.get("stage");
-  const t = location.hash.slice(1); if (TABS.includes(t)) ui.tab = t; }
+/* Deep links: /?record=<space>/<intent>&stage=<slug>#workflow|#agents|#decisions|#audit
+   Audit filters: aq (text), ae (event), as (stage), aa (agent). Decision filters: ds (stage), do=1 (open only). */
+const AUDIT_PARAMS = { q: "aq", event: "ae", stage: "as", agent: "aa" };
+function applyUrl() {
+  const p = new URLSearchParams(location.search);
+  ui.record = p.get("record"); ui.stage = p.get("stage");
+  const t = location.hash.slice(1); ui.tab = TABS.includes(t) ? t : "overview";
+  ui.af = { q: "", event: "", stage: "", agent: "" };
+  for (const [k, key] of Object.entries(AUDIT_PARAMS)) ui.af[k] = p.get(key) || "";
+  ui.df = { stage: p.get("ds") || "", openOnly: p.get("do") === "1" };
+}
+function currentUrl() {
+  const p = new URLSearchParams();
+  if (ui.record) p.set("record", ui.record);
+  if (ui.stage) p.set("stage", ui.stage);
+  for (const [k, key] of Object.entries(AUDIT_PARAMS)) if (ui.af[k]) p.set(key, ui.af[k]);
+  if (ui.df.stage) p.set("ds", ui.df.stage);
+  if (ui.df.openOnly) p.set("do", "1");
+  const q = p.toString();
+  return location.pathname + (q ? "?" + q : "") + "#" + ui.tab;
+}
+/* push = true adds a Back-button entry (tab changes); otherwise the current entry is updated in place. */
+function syncUrl(push) {
+  const url = currentUrl();
+  if (url === location.pathname + location.search + location.hash) return;
+  history[push ? "pushState" : "replaceState"](null, "", url);
+}
+applyUrl();
+window.addEventListener("popstate", () => {
+  const prev = ui.record;
+  applyUrl(); ui.artifact = null;
+  if (ui.record !== prev) { ui.audit = null; refresh(); } else render();
+});
 
 /* DOM helper: all text goes through textContent, never innerHTML, so project file contents can't inject markup. */
 function h(tag, attrs, ...kids) {
@@ -83,11 +113,15 @@ async function refreshAudit() {
   return changed;
 }
 function setTab(tab) {
+  const changed = tab !== ui.tab;
+  if (changed) tabScroll[ui.tab] = window.scrollY;  // remember where the reader was on the tab being left
   ui.tab = tab;
-  history.replaceState(null, "", location.pathname + location.search + "#" + tab);
+  syncUrl(changed);
   if (tab === "audit" && (!ui.audit || ui.audit.record !== ui.record)) { ui.audit = null; refresh(); }
   render();
+  if (changed) window.scrollTo(0, tabScroll[tab] || 0);
 }
+const tabScroll = {};
 function showAuditFor(filters) {
   ui.af = { q: "", event: "", stage: "", agent: "", ...filters };
   ui.auditShown = AUDIT_PAGE;
@@ -115,6 +149,16 @@ function render() {
   const view = views.get(ui.tab) || renderOverview;  // fixed allowlist; unknown tabs fall back to Overview
   document.getElementById("app").replaceChildren(warningsBanner(d), ...[].concat(view(d)).flat(), artifactModal());
   updateTitle(d);
+  renderNeedsChip(d);
+  syncUrl(false);
+}
+
+/* Header chip, visible from every tab and scroll position (the header is sticky) when something needs the reader. */
+function renderNeedsChip(d) {
+  const chip = document.getElementById("needsChip"), n = needsCount(d);
+  chip.hidden = !n;
+  if (n) chip.textContent = "⚠ " + n + " need" + (n === 1 ? "s" : "") + " you";
+  chip.href = location.pathname + (ui.record ? "?record=" + encodeURIComponent(ui.record) : "") + "#overview";
 }
 
 /* Setup problems the reader noticed: several harnesses, untested AI-DLC release, guessed stage order. */
@@ -125,7 +169,9 @@ function warningsBanner(d) {
 
 function renderTabs(d) {
   const working = (d.agents || []).filter((a) => a.state === "working").length;
-  document.querySelectorAll("#tabs button").forEach((b) => {
+  const rec = ui.record ? "?record=" + encodeURIComponent(ui.record) : "";
+  document.querySelectorAll("#tabs a").forEach((b) => {
+    b.href = location.pathname + rec + "#" + b.dataset.tab;  // keeps the current run in a new tab
     b.className = b.dataset.tab === ui.tab ? "on" : "";
     const label = TAB_LABEL[b.dataset.tab];
     const n = b.dataset.tab === "agents" ? working : b.dataset.tab === "audit" ? d.eventCount
@@ -241,7 +287,16 @@ function artifactModal() {
   return h("div", { class: "modal", onclick: (e) => { if (e.target.classList.contains("modal")) { ui.artifact = null; render(); } } },
     h("div", { class: "modal-box", role: "dialog", "aria-label": "Artifact viewer" }, artifactPanel(ui.artifact)));
 }
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && ui.artifact) { ui.artifact = null; render(); } });
+/* Keys: Esc closes the viewer, 1-6 switch tabs, / focuses the first filter box on the current tab. */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && ui.artifact) { ui.artifact = null; render(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target, tag = t && t.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+  if (ui.artifact) return;
+  if (e.key >= "1" && e.key <= String(TABS.length)) { e.preventDefault(); setTab(TABS[Number(e.key) - 1]); }
+  else if (e.key === "/") { const el = document.querySelector(".filter input"); if (el) { e.preventDefault(); el.focus(); } }
+});
 
 function renderEvents(d) {
   const f = ui.filter.toLowerCase();
@@ -1135,7 +1190,13 @@ function tickLabel(t, span) {
 }
 
 document.getElementById("recordSel").addEventListener("change", (e) => { stopReplayQuiet(); ui.record = e.target.value || null; ui.stage = null; ui.artifact = null; ui.audit = null; ui.openEvents.clear(); refresh(); });
-document.querySelectorAll("#tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
+/* Tabs are real links (href set in renderTabs), so right-click "Open in new tab", middle-click and Ctrl/Cmd-click work natively.
+   Only a plain left click is handled in-page. */
+document.querySelectorAll("#tabs a, #needsChip").forEach((a) => a.addEventListener("click", (e) => {
+  if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  setTab(a.dataset.tab);
+}));
 document.getElementById("pauseBtn").addEventListener("click", (e) => { ui.paused = !ui.paused; e.target.textContent = ui.paused ? "Resume" : "Pause"; });
 setupAlertButton();
 refresh();

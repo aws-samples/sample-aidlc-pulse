@@ -54,7 +54,14 @@ Tested against AI-DLC 2.11 (release 2.11.4). The header shows the project's AI-D
 
 The page checks for changes every 5 seconds (every 15 seconds in a background tab) and only redraws when something changed.
 
-Deep links: `/?record=<space>/<intent>&stage=<slug>`. Add `#workflow`, `#timeline`, `#agents`, `#decisions` or `#audit` to open a tab.
+Deep links: `/?record=<space>/<intent>&stage=<slug>`. Add `#workflow`, `#timeline`, `#agents`, `#decisions` or `#audit` to open a tab. The address also carries the audit filters (`aq` text, `ae` event, `as` stage, `aa` agent) and the decisions filters (`ds` stage, `do=1` open only), so a reload or a copied link restores the same view.
+
+Navigation:
+
+- The header and tab bar stay at the top while you scroll. A pink "N need you" chip in the header shows open gates, stalls, errors and paused units from any tab, and opens Overview.
+- The tabs are real links: right-click for "Open link in new tab", or middle-click or Ctrl/Cmd-click. The new tab opens on the same run.
+- Keys: `1`-`6` switch tabs and `/` focuses the filter box. They are off while you type in a field.
+- The Back button returns to the previous tab, and each tab remembers its scroll position.
 
 ## The tabs
 

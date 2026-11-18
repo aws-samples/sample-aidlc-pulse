@@ -7,11 +7,13 @@
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+<div class="topbar">
 <header>
   <h1>AI-DLC <span>Pulse</span></h1>
   <span class="ver" id="pulseVer"></span>
   <span class="proj" id="proj"></span>
   <div class="right">
+    <a class="hdr-needs" id="needsChip" data-tab="overview" href="#overview" hidden title="Open the Overview to see what needs you"></a>
     <label>Record <select id="recordSel"></select></label>
     <span><span class="dot" id="liveDot"></span><span id="updated">connecting…</span></span>
     <button id="alertBtn" type="button" title="Browser notifications when a gate opens, a stage stalls or an error is logged">🔔 Enable alerts</button>
@@ -20,13 +22,14 @@
   </div>
 </header>
 <nav class="tabs" id="tabs">
-  <button type="button" data-tab="overview">Overview</button>
-  <button type="button" data-tab="workflow">Workflow</button>
-  <button type="button" data-tab="timeline">Timeline</button>
-  <button type="button" data-tab="agents">Agents</button>
-  <button type="button" data-tab="decisions">Decisions</button>
-  <button type="button" data-tab="audit">Audit trail</button>
+  <a href="#overview" data-tab="overview">Overview</a>
+  <a href="#workflow" data-tab="workflow">Workflow</a>
+  <a href="#timeline" data-tab="timeline">Timeline</a>
+  <a href="#agents" data-tab="agents">Agents</a>
+  <a href="#decisions" data-tab="decisions">Decisions</a>
+  <a href="#audit" data-tab="audit">Audit trail</a>
 </nav>
+</div>
 <main id="app"><div class="card empty">Loading…</div></main>
 
 <script src="/app.js"></script>
